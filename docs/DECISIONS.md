@@ -117,3 +117,56 @@ Record one entry per decision, newest last. Reference them from `IMPLEMENTATION.
 - **Context:** The TRD names "SQLAlchemy 2.0". The current release is 2.1 (same 2.x API).
 - **Decision:** Take current releases at M0 (FastAPI 0.143, SQLAlchemy 2.1, Pydantic 2.14, structlog 26, uv 0.13), pinned through `uv.lock`, with Python `>=3.12,<3.13`. The `voice` and `vault` dependency groups exist but stay empty until M5 and M10, so the image doesn't carry unused libraries.
 - **Consequences:** Upgrades go through `uv lock --upgrade` in their own commit.
+
+## D-011 — Scheme sources: official sites, not myScheme or its scraped datasets
+
+- **Date:** 2026-10-10
+- **Task:** M1-T06
+- **Status:** accepted
+- **Context:** TRD §8 names myScheme.gov.in as a source and two public myScheme datasets as possible seeds, "after verifying licence and freshness". Findings (checked 2026-10-10):
+  - **myScheme `robots.txt`** allows everything except `/404`, and lists a sitemap.
+  - **myScheme Terms of Use** say: "The use of any software (e.g. bots, scraper tools) or other automatic devices to access, monitor, or copy … is prohibited unless expressly authorized by the myScheme in writing." The separate copyright policy allows accurate reproduction of material with prominent acknowledgement. The stricter Terms of Use govern automated access.
+  - **myScheme pages are rendered in the browser.** The HTML of `/schemes/<slug>` has no scheme text (an empty Next.js shell); the content comes from an undocumented API that needs a key embedded in the site's JavaScript. HTML parsing (trafilatura) therefore can't read it either.
+  - **Hugging Face `shrijayan/gov_myscheme`:** labelled Apache-2.0, last modified 2025-02-09, 723 PDFs (with duplicate "copy" files), collected by crawling the myScheme sitemap. It is over a year and a half old, and the uploader can't license content they scraped against the site's terms.
+  - **Kaggle `elchemist/myscheme-india-govt-welfare-schemes`:** labelled CC0, version 3 of 2026-03-25, 4,670 schemes plus 51,435 FAQs, "sourced from myScheme.gov.in public API" with a scraper. Same provenance problem, and it is a snapshot.
+- **Decision:** The curated manifest uses official primary sources only: ministry and department sites (for example the PM-KISAN operational guidelines PDF), PIB documents on `static.pib.gov.in` (central schemes), and NIC district portals for Maharashtra schemes whose own portals are unreachable or rendered in the browser. Neither dataset is used as a source of scheme text or rules. A unit test keeps myScheme URLs out of the manifest.
+- **Alternatives considered:** Crawling the myScheme API (forbidden by its terms, and fragile); seeding from the Kaggle dataset (provenance and freshness; acceptable at most as an offline checklist of scheme names, which M1 doesn't need).
+- **Consequences:** M9-T05 (myScheme watcher) needs either written authorisation from myScheme or a different design (for example manual sitemap checks). This is flagged for M9-T03. Several official hosts (`pmjay.gov.in`, `jeevandayee.gov.in`, `npscra.nsdl.co.in`, `financialservices.gov.in`) timed out from the dev machine, and some (`labour.gov.in`, `india.gov.in`, `pib.gov.in` HTML pages) return 403 to non-browser clients. Each scheme can therefore list several sources, and the fetcher skips a failed source without failing the scheme.
+
+## D-012 — Garbled Devanagari from legacy-font PDFs is detected and skipped
+
+- **Date:** 2026-10-10
+- **Task:** M1-T08
+- **Status:** accepted
+- **Context:** Maharashtra Government Resolutions (for example the Ladki Bahin GR of 28 June 2024) are typeset in the "Sakal Marathi" font. Its embedded Unicode mapping is wrong, so the PDF's text layer extracts as plausible-looking but garbled Marathi: the i-matra comes out as "ह" placed before the consonant ("महहला" for "महिला"), reph comes out as "ण" ("हनणणय" for "निर्णय"), and थ as "ि". The mapping is ambiguous (a real "ह" looks the same), so it can't be reversed reliably without a dictionary or OCR.
+- **Decision:** The PDF parser flags a document as garbled when it uses a known broken font, or when its Devanagari text has an implausibly low share of the i-matra (`ि`). Normal Hindi and Marathi prose has about 3–5% of Devanagari characters as i-matra; the Ladki Bahin GR has 0.3%. Garbled documents are skipped with a warning instead of being indexed, because searchable garbage hurts retrieval and would mislead rule extraction. The manifest uses an official HTML page for such schemes instead.
+- **Alternatives considered:** A character-level repair table (unreliable, see above); OCR with Tesseract `hin`/`mar` (the right long-term fix; Tesseract is planned for M10's OCR fallback and can be reused here then).
+- **Consequences:** M9's Maharashtra GR watcher will hit this on most GRs. It will need the OCR path (M10-T13) or the English GR where one exists.
+
+## D-013 — Settings added in M1
+
+- **Date:** 2026-10-10
+- **Task:** M1-T02, M1-T04
+- **Status:** accepted
+- **Context:** Providers need a few knobs TRD §15 doesn't list.
+- **Decision:** `AZURE_OPENAI_API_VERSION` (default `2024-10-21`, a GA version with structured outputs), `AZURE_OPENAI_EMBEDDING_DEPLOYMENT`, `LLM_TIMEOUT_SEC` (120 s per request), `EMBEDDING_CACHE_TTL_DAYS` (30) and `LOCAL_MODEL_DIR` (where the local embedding model is downloaded). `ANTHROPIC_MODEL` now defaults to `claude-opus-5-5`, the current Opus model.
+- **Consequences:** On machines where the repository lives in a synced folder (OneDrive), set `LOCAL_MODEL_DIR` outside it; the model is about 2 GB.
+
+## D-014 — LLM providers: one retry policy, structured output, refusal fallback
+
+- **Date:** 2026-10-10
+- **Task:** M1-T02
+- **Status:** accepted
+- **Context:** NFR Reliability asks for 3 tries with exponential backoff. Both vendor SDKs also retry on their own.
+- **Decision:** SDK retries are turned off (`max_retries=0`), and `LLMProvider` applies a single policy: 3 attempts with exponential backoff and jitter, on transient errors only (connection errors, timeouts, 408/409/429, 5xx). Refusals, truncated output and schema mismatches raise distinct errors and are not retried. Structured output uses each vendor's JSON-schema mode (Azure `response_format` with strict schemas; Anthropic `output_config.format`), and the result is always validated with Pydantic. The interface has no `temperature`, because current Claude models reject sampling parameters. The Anthropic provider sends `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`), so a request declined by a safety classifier is re-run on a fallback model instead of failing. Provider tests run against an in-memory HTTP transport (both SDKs use `httpx2`, which `respx` can't mock).
+- **Consequences:** Every call is traced (`llm.complete` / `llm.structured` spans with provider, model, tokens, attempts) and logged without content.
+
+## D-015 — Local embeddings through fastembed (ONNX) instead of sentence-transformers
+
+- **Date:** 2026-10-10
+- **Task:** M1-T04
+- **Status:** accepted
+- **Context:** `multilingual-e5-large` is usually run with sentence-transformers, which pulls in PyTorch (several GB, CUDA wheels on Linux by default) into the API image and CI.
+- **Decision:** Use `fastembed`, which runs the same model exported to ONNX on ONNX Runtime (CPU). The provider adds the `query: ` / `passage: ` prefixes and L2-normalises the vectors itself, because fastembed does neither for this model. Inference runs in a worker thread. The ~2.2 GB model is downloaded to `LOCAL_MODEL_DIR` on first use; tests use a deterministic fake embedder and never download it. A `live` test checks that the real model puts Hindi, Marathi and English text in one space.
+- **Alternatives considered:** sentence-transformers + torch (much heavier); Azure embeddings only (paid per call, and the TRD default is local).
+- **Consequences:** The M3 retriever embeds queries in-process. The API container will need the model cached in a volume (M12).
