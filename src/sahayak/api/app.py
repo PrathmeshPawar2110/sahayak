@@ -11,7 +11,7 @@ from sahayak.api import health
 from sahayak.api.errors import ErrorEnvelope, register_error_handlers
 from sahayak.api.readiness import postgres_check, redis_check
 from sahayak.config import Settings, get_settings
-from sahayak.db.session import create_engine
+from sahayak.db.session import create_engine, create_session_factory
 from sahayak.observability.logging import configure_logging
 from sahayak.observability.middleware import RequestIdMiddleware
 from sahayak.observability.tracing import configure_tracing, instrument_app
@@ -28,6 +28,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         engine = create_engine(settings)
         redis = Redis.from_url(settings.redis_url)
         app.state.db_engine = engine
+        app.state.session_factory = create_session_factory(engine)
         app.state.redis = redis
         app.state.readiness_checks = {
             "postgres": postgres_check(engine),

@@ -89,6 +89,8 @@ strict = true
 files = ["src", "tests"]
 mypy_path = "src"
 plugins = ["pydantic.mypy"]
+# Migration modules are named like 20261010_0001_baseline.py (not importable names).
+exclude = ["src/sahayak/db/alembic/versions/"]
 warn_unreachable = true
 
 [tool.pydantic-mypy]

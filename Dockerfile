@@ -30,6 +30,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
+COPY alembic.ini ./
 USER sahayak
 
 EXPOSE 8000

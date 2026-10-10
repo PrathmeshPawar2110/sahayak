@@ -1,6 +1,6 @@
 name: sahayak
 
-# Settings shared by the app containers. Values here override .env so that
+# Settings shared by the API and the one-shot migration job. Values here override .env so that
 # service hostnames resolve inside the compose network.
 x-app: &app
   build: .
@@ -19,9 +19,19 @@ services:
     ports:
       - "8000:8000"
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+
+  migrate:
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      postgres:
         condition: service_healthy
 
   postgres:
