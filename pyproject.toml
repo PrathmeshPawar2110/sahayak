@@ -104,6 +104,8 @@ plugins = ["pydantic.mypy"]
 # Migration modules are named like 20261010_0001_baseline.py (not importable names).
 exclude = ["src/sahayak/db/alembic/versions/"]
 warn_unreachable = true
+# pymupdf ships partial annotations; its unannotated functions are still safe to call.
+untyped_calls_exclude = ["pymupdf"]
 
 [tool.pydantic-mypy]
 init_forbid_extra = true
