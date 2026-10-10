@@ -33,6 +33,13 @@ API docs: <http://localhost:8000/docs>
 | `uv run just migrate` | apply Alembic migrations |
 | `uv run just up` / `down` | start / stop the docker-compose stack |
 
+### Windows notes
+
+- If the repo lives under OneDrive, set `UV_LINK_MODE=copy` (OneDrive rejects uv's hard links).
+- With Smart App Control on, some compiled tools are blocked (notably mypy's `librt`). Run tools
+  as modules (`uv run python -m pytest`, `uv run python -m pre_commit`). See
+  [D-007](docs/DECISIONS.md) for the type-checking workaround; CI is the source of truth.
+
 ## Project layout
 
 See TRD §13. Design decisions are recorded in [docs/DECISIONS.md](docs/DECISIONS.md).
