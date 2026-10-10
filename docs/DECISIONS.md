@@ -170,3 +170,13 @@ Record one entry per decision, newest last. Reference them from `IMPLEMENTATION.
 - **Decision:** Use `fastembed`, which runs the same model exported to ONNX on ONNX Runtime (CPU). The provider adds the `query: ` / `passage: ` prefixes and L2-normalises the vectors itself, because fastembed does neither for this model. Inference runs in a worker thread. The ~2.2 GB model is downloaded to `LOCAL_MODEL_DIR` on first use; tests use a deterministic fake embedder and never download it. A `live` test checks that the real model puts Hindi, Marathi and English text in one space.
 - **Alternatives considered:** sentence-transformers + torch (much heavier); Azure embeddings only (paid per call, and the TRD default is local).
 - **Consequences:** The M3 retriever embeds queries in-process. The API container will need the model cached in a volume (M12).
+
+## D-016 — Crawler trust store fills in missing intermediate certificates
+
+- **Date:** 2026-10-10
+- **Task:** M1-T07
+- **Status:** accepted
+- **Context:** `pmkisan.gov.in` (sends unrelated GoDaddy G2 intermediates) and `www.nsiindia.gov.in` (sends no intermediate) present incomplete TLS chains. Browsers and Windows `curl` repair this by fetching the missing intermediate (AIA); Python's `ssl` with certifi, and OpenSSL on Linux, don't. Their `robots.txt` then counts as unreachable, which RFC 9309 treats as "disallow everything", so both sources were skipped.
+- **Decision:** `src/sahayak/ingestion/extra_intermediates.crt` holds the four public certificates needed to complete those chains: the GoDaddy DV R1v1 intermediate, GoDaddy's TLS Root R1 cross-signed by Go Daddy Root G2, Let's Encrypt YE2, and ISRG Root YE cross-signed by ISRG Root X2. Each entry records its subject, issuer, expiry, SHA-256 fingerprint and source. The crawler's SSL context is certifi plus this file, with `VERIFY_X509_PARTIAL_CHAIN` explicitly cleared, so every chain must still end at a root that certifi trusts. Verification is never disabled.
+- **Alternatives considered:** `verify=False` for these hosts (unsafe); `truststore` (uses the OS store, which repairs chains on Windows and macOS but not Linux, where CI and the containers run); a browser-like user agent (unrelated to the failure, and less honest).
+- **Consequences:** With this file, all 15 manifest sources fetch with the descriptive `SahayakBot` user agent. The file is the API's only extension to certifi, and it's scoped to the crawler. An entry can be removed once its server is fixed (`openssl s_client -connect <host>:443` shows `Verify return code: 0` without it).
