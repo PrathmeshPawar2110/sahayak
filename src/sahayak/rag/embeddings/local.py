@@ -5,6 +5,7 @@ L2-normalised outputs; fastembed adds neither, so this class does both.
 """
 
 import asyncio
+import os
 import threading
 from collections.abc import Sequence
 from typing import Any
@@ -55,6 +56,8 @@ class LocalEmbeddingProvider(EmbeddingProvider):
     def _load(self) -> Any:
         with self._lock:
             if self._encoder is None:
+                # Windows without Developer Mode can't symlink the HF cache; copies work fine.
+                os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
                 from fastembed import TextEmbedding  # heavy import, deferred to first use
 
                 self._encoder = TextEmbedding(self._model_name, cache_dir=self._cache_dir)
