@@ -1,0 +1,88 @@
+name: sahayak
+
+# Settings shared by the app containers. Values here override .env so that
+# service hostnames resolve inside the compose network.
+x-app: &app
+  build: .
+  image: sahayak-api:dev
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    DATABASE_URL: postgresql+asyncpg://sahayak:sahayak@postgres:5432/sahayak
+    REDIS_URL: redis://redis:6379/0
+    CLAMAV_HOST: clamav
+
+services:
+  api:
+    <<: *app
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: sahayak
+      POSTGRES_PASSWORD: sahayak
+      POSTGRES_DB: sahayak
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sahayak -d sahayak"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Local S3-compatible object store for the document vault (BLOB_BACKEND=minio).
+  # MinIO no longer publishes container images, so RustFS stands in (see docs/DECISIONS.md D-005).
+  minio:
+    image: rustfs/rustfs:1.0.1
+    environment:
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ACCESS_KEY: ${LOCAL_S3_ACCESS_KEY:-sahayak}
+      RUSTFS_SECRET_KEY: ${LOCAL_S3_SECRET_KEY:-sahayak-dev-secret}
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - objectdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  # Virus scanning for uploads (TRD §8B). First start downloads signatures and takes a few minutes.
+  clamav:
+    image: clamav/clamav:1.4
+    volumes:
+      - clamavdb:/var/lib/clamav
+
+volumes:
+  pgdata:
+  redisdata:
+  objectdata:
+  clamavdb:
