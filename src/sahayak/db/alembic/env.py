@@ -7,6 +7,7 @@ from alembic import context
 from sqlalchemy import Connection, pool
 from sqlalchemy.ext.asyncio import create_async_engine
 
+import sahayak.db.models  # noqa: F401  (registers tables on Base.metadata)
 from sahayak.config import get_settings
 from sahayak.db.base import Base
 
