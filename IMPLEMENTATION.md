@@ -38,7 +38,7 @@
 
 | Milestone | Title | TRD ref | Status | Started | Completed |
 |---|---|---|---|---|---|
-| M0 | Project skeleton | §14, §13, §17 | `NEEDS_REVIEW` | 2026-10-10 | |
+| M0 | Project skeleton | §14, §13, §17 | `DONE` | 2026-10-10 | 2026-10-10 |
 | M1 | Data layer and ingestion | §8, §9 | `TODO` | | |
 | M2 | Rule engine and question planner | §9.2, §10 | `TODO` | | |
 | M3 | RAG retriever | §7, §8 | `TODO` | | |
@@ -57,7 +57,7 @@
 
 ## M0 — Project skeleton
 
-**Status:** `NEEDS_REVIEW`
+**Status:** `DONE`
 
 | ID | Task | Owner | Depends | Status | Notes |
 |---|---|---|---|---|---|
@@ -418,7 +418,6 @@ Claude Code lists here every HUMAN task that is currently blocking progress.
 | Task ID | What's needed | Blocking | Date raised |
 |---|---|---|---|
 | M0-T13 | Azure OpenAI (or Anthropic) API key in local `.env` | M1-T11 live rule extraction (M1-T02 can proceed with the fake provider) | 2026-10-10 |
-| — | Review and merge PR #1 (M0), then set M0 to `DONE` | M1 start | 2026-10-10 |
 
 ---
 
@@ -428,4 +427,4 @@ Claude Code adds one entry per completed milestone (newest first).
 
 | Date | Milestone | Summary | Commit |
 |---|---|---|---|
-| 2026-10-10 | M0 | Project skeleton: layout, CLAUDE.md, uv/ruff/mypy/pytest, pre-commit, settings, logging/tracing/redaction, FastAPI app with health and readiness, Docker + compose, async DB + Alembic baseline (pgvector), test fixtures, CI, justfile. 10 decisions (D-001 to D-010). CI green on PR #1 after two CI fixes (setup-uv pin, Alembic path_separator). Awaiting review. | febd17b |
+| 2026-10-10 | M0 | Project skeleton: layout, CLAUDE.md, uv/ruff/mypy/pytest, pre-commit, settings, logging/tracing/redaction, FastAPI app with health and readiness, Docker + compose, async DB + Alembic baseline (pgvector), test fixtures, CI, justfile. 10 decisions (D-001 to D-010). CI green on PR #1 after two CI fixes (setup-uv pin, Alembic path_separator). Reviewed, merged and marked DONE by Prathmesh. | d5c3a3f (merge) |
