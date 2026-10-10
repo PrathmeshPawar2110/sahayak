@@ -34,12 +34,21 @@ def redact_pii(
     return event_dict
 
 
+def drop_color_message(
+    _logger: Any, _method: str, event_dict: MutableMapping[str, Any]
+) -> MutableMapping[str, Any]:
+    """Uvicorn attaches an ANSI-coloured duplicate of the message; it is noise in JSON logs."""
+    event_dict.pop("color_message", None)
+    return event_dict
+
+
 def configure_logging(settings: Settings) -> None:
     shared: list[structlog.typing.Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
         structlog.stdlib.ExtraAdder(),
+        drop_color_message,
         structlog.processors.TimeStamper(fmt="iso", utc=True),
         add_trace_context,
         structlog.processors.StackInfoRenderer(),
