@@ -38,7 +38,7 @@
 
 | Milestone | Title | TRD ref | Status | Started | Completed |
 |---|---|---|---|---|---|
-| M0 | Project skeleton | §14, §13, §17 | `TODO` | | |
+| M0 | Project skeleton | §14, §13, §17 | `NEEDS_REVIEW` | 2026-10-10 | |
 | M1 | Data layer and ingestion | §8, §9 | `TODO` | | |
 | M2 | Rule engine and question planner | §9.2, §10 | `TODO` | | |
 | M3 | RAG retriever | §7, §8 | `TODO` | | |
@@ -57,28 +57,28 @@
 
 ## M0 — Project skeleton
 
-**Status:** `TODO`
+**Status:** `NEEDS_REVIEW`
 
 | ID | Task | Owner | Depends | Status | Notes |
 |---|---|---|---|---|---|
-| M0-T01 | Create the repo layout from TRD §13 (empty packages with `__init__.py`), `.gitignore`, `README.md` stub, `docs/DECISIONS.md` (with a decision template), copy TRD to `docs/TRD.md`. | CC | — | `TODO` | |
-| M0-T02 | Create `CLAUDE.md` from TRD §17 conventions, plus a pointer to this file. | CC | M0-T01 | `TODO` | |
-| M0-T03 | Set up `pyproject.toml` with `uv` (Python 3.12), dependency groups (`dev`, `voice`, `vault`), and ruff, mypy (`--strict`), pytest and pytest-asyncio config. | CC | M0-T01 | `TODO` | |
-| M0-T04 | Pre-commit hooks: ruff, ruff-format, mypy, end-of-file and trailing-whitespace fixers, and a secret scanner (gitleaks or detect-secrets). | CC | M0-T03 | `TODO` | |
-| M0-T05 | `src/sahayak/config.py` using pydantic-settings; `.env.example` with every variable from TRD §15 (empty secrets). | CC | M0-T03 | `TODO` | |
-| M0-T06 | Structured logging (structlog JSON) with a PII-redaction processor stub, request-ID middleware, and OpenTelemetry tracing setup (console exporter in dev). | CC | M0-T05 | `TODO` | |
-| M0-T07 | FastAPI app factory, `/healthz` (liveness) and `/readyz` (checks DB and Redis), consistent error envelope `{error:{code,message}}`, OpenAPI at `/docs`. | CC | M0-T06 | `TODO` | |
-| M0-T08 | `docker-compose.yml`: api, postgres 16 with pgvector, redis 7, minio, clamav. Dockerfile (multi-stage, non-root user). | CC | M0-T07 | `TODO` | |
-| M0-T09 | Async SQLAlchemy 2.0 engine/session setup and Alembic initialised (empty baseline migration, pgvector extension enabled). | CC | M0-T08 | `TODO` | |
-| M0-T10 | Test scaffolding: `tests/unit`, `tests/integration`, `tests/e2e`, fixtures for app client, DB (transaction rollback) and Redis; `live` pytest marker excluded by default. | CC | M0-T09 | `TODO` | |
-| M0-T11 | GitHub Actions CI: install with uv, ruff, mypy, pytest (unit + integration using service containers). | CC | M0-T10 | `TODO` | |
-| M0-T12 | `Makefile` or `justfile` with `up`, `down`, `test`, `lint`, `migrate`, `fmt`. | CC | M0-T08 | `TODO` | |
+| M0-T01 | Create the repo layout from TRD §13 (empty packages with `__init__.py`), `.gitignore`, `README.md` stub, `docs/DECISIONS.md` (with a decision template), copy TRD to `docs/TRD.md`. | CC | — | `DONE` | Layout per TRD §13, README stub, DECISIONS template; TRD moved (not copied) to docs/ (see D-009). d66836b |
+| M0-T02 | Create `CLAUDE.md` from TRD §17 conventions, plus a pointer to this file. | CC | M0-T01 | `DONE` | CLAUDE.md with §17 conventions, workflow pointer to this file, commands and test layout. b25b870 |
+| M0-T03 | Set up `pyproject.toml` with `uv` (Python 3.12), dependency groups (`dev`, `voice`, `vault`), and ruff, mypy (`--strict`), pytest and pytest-asyncio config. | CC | M0-T01 | `DONE` | uv + Python 3.12.15; ruff, mypy --strict (pydantic plugin), pytest-asyncio, coverage; empty voice/vault groups (see D-010). d0e9f29 |
+| M0-T04 | Pre-commit hooks: ruff, ruff-format, mypy, end-of-file and trailing-whitespace fixers, and a secret scanner (gitleaks or detect-secrets). | CC | M0-T03 | `DONE` | ruff, ruff-format, mypy, EOF/whitespace, yaml/toml, gitleaks (see D-004). Some hooks are blocked locally by Smart App Control; CI runs all of them (see D-007). d410bd8 |
+| M0-T05 | `src/sahayak/config.py` using pydantic-settings; `.env.example` with every variable from TRD §15 (empty secrets). | CC | M0-T03 | `DONE` | All §15 variables typed and validated (secrets as SecretStr, TTL ≤ 300 s); test keeps .env.example in sync (see D-008). 22fb684 |
+| M0-T06 | Structured logging (structlog JSON) with a PII-redaction processor stub, request-ID middleware, and OpenTelemetry tracing setup (console exporter in dev). | CC | M0-T05 | `DONE` | structlog JSON incl. stdlib/uvicorn logs, PII redaction baseline, X-Request-ID middleware + request log, OTel console exporter in dev. ffd9657 |
+| M0-T07 | FastAPI app factory, `/healthz` (liveness) and `/readyz` (checks DB and Redis), consistent error envelope `{error:{code,message}}`, OpenAPI at `/docs`. | CC | M0-T06 | `DONE` | create_app factory, /healthz, /readyz (Postgres + Redis, 503 envelope), error envelope, /docs; smoke-tested with uvicorn (see D-002). 5620fc3 |
+| M0-T08 | `docker-compose.yml`: api, postgres 16 with pgvector, redis 7, minio, clamav. Dockerfile (multi-stage, non-root user). | CC | M0-T07 | `DONE` | Multi-stage non-root Dockerfile; compose with api, pgvector/pg16, redis 7, clamav, RustFS as the S3 store (see D-005). Not run locally (no Docker); CI compose job covers it. 9d63e48 |
+| M0-T09 | Async SQLAlchemy 2.0 engine/session setup and Alembic initialised (empty baseline migration, pgvector extension enabled). | CC | M0-T08 | `DONE` | Async engine, session factory, DbSession dependency; Alembic via sahayak.db:alembic, baseline 0001 enables pgvector; compose migrate job (see D-006). f9230c8, path_separator fix 27e90c4 |
+| M0-T10 | Test scaffolding: `tests/unit`, `tests/integration`, `tests/e2e`, fixtures for app client, DB (transaction rollback) and Redis; `live` pytest marker excluded by default. | CC | M0-T09 | `DONE` | Fixtures: app client, rollback-only db_session, Redis DB 15; markers by directory; live excluded; skip locally / fail in CI (see D-003). 7982858 |
+| M0-T11 | GitHub Actions CI: install with uv, ruff, mypy, pytest (unit + integration using service containers). | CC | M0-T10 | `DONE` | Jobs: lint (+pre-commit, gitleaks), test (pgvector + redis service containers), compose smoke test. Green in CI run 38052116905. 5eecff0, setup-uv pin 4dfe731 |
+| M0-T12 | `Makefile` or `justfile` with `up`, `down`, `test`, `lint`, `migrate`, `fmt`. | CC | M0-T08 | `DONE` | justfile via rust-just: up, down, test, lint, migrate, fmt (+ install, revision, dev) (see D-001). febd17b |
 | M0-T13 | Create Azure OpenAI (or Anthropic) API key and add it to local `.env`. | HUMAN | — | `TODO` | |
 
 **Exit criteria**
-- [ ] `docker compose up` starts all services; `/healthz` and `/readyz` return 200.
-- [ ] `make lint` and `make test` pass locally and in CI.
-- [ ] `CLAUDE.md` and `docs/DECISIONS.md` exist.
+- [x] `docker compose up` starts all services; `/healthz` and `/readyz` return 200. *Verified in CI (`compose` job, run 38052116905): image builds, migrate exits 0, api runs as uid 10001, `/readyz`, `/healthz`, `/docs` OK. Not run locally (no Docker).*
+- [x] `just lint` and `just test` pass locally and in CI (`justfile` instead of `make`, see D-001). *CI run 38052116905: ruff, mypy 2.4 --strict, pre-commit, gitleaks, and 50/50 tests incl. integration against pgvector/redis. Locally: same, with the mypy fallback (D-007) and integration tests skipped.*
+- [x] `CLAUDE.md` and `docs/DECISIONS.md` exist.
 
 ---
 
@@ -417,7 +417,8 @@ Claude Code lists here every HUMAN task that is currently blocking progress.
 
 | Task ID | What's needed | Blocking | Date raised |
 |---|---|---|---|
-| | | | |
+| M0-T13 | Azure OpenAI (or Anthropic) API key in local `.env` | M1-T11 live rule extraction (M1-T02 can proceed with the fake provider) | 2026-10-10 |
+| — | Review and merge PR #1 (M0), then set M0 to `DONE` | M1 start | 2026-10-10 |
 
 ---
 
@@ -427,4 +428,4 @@ Claude Code adds one entry per completed milestone (newest first).
 
 | Date | Milestone | Summary | Commit |
 |---|---|---|---|
-| | | | |
+| 2026-10-10 | M0 | Project skeleton: layout, CLAUDE.md, uv/ruff/mypy/pytest, pre-commit, settings, logging/tracing/redaction, FastAPI app with health and readiness, Docker + compose, async DB + Alembic baseline (pgvector), test fixtures, CI, justfile. 10 decisions (D-001 to D-010). CI green on PR #1 after two CI fixes (setup-uv pin, Alembic path_separator). Awaiting review. | febd17b |
