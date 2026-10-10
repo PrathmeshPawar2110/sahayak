@@ -11,7 +11,8 @@ from sahayak.config import get_settings
 from sahayak.db.base import Base
 
 config = context.config
-if config.config_file_name is not None:
+# Callers that manage logging themselves (e.g. the test suite) set attributes["configure_logging"].
+if config.config_file_name is not None and config.attributes.get("configure_logging", True):
     fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata

@@ -39,3 +39,13 @@ async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
         transport = httpx.ASGITransport(app=manager.app, raise_app_exceptions=False)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             yield client
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Mark tests by directory so `-m integration` / `-m "not e2e"` work without decorators."""
+    for item in items:
+        parts = item.path.parts
+        if "integration" in parts:
+            item.add_marker(pytest.mark.integration)
+        elif "e2e" in parts:
+            item.add_marker(pytest.mark.e2e)
