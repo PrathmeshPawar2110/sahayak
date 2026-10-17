@@ -308,3 +308,22 @@ Record one entry per decision, newest last. Reference them from `IMPLEMENTATION.
 - **Decision:** `next_question(results, profile, questions_asked=, max_questions=8, declined=())` returns a `PlannedQuestion` (field, the NEEDS_INFO scheme ids it feeds, whether it's sensitive) or `None`. It returns `None` when `questions_asked` has reached the limit, or when no NEEDS_INFO scheme has an askable field. Each scheme counts once per field. Ties go to non-sensitive fields, then to `UserProfile` field order, so the choice is deterministic. Known fields (re-checked against the profile) and `declined` fields are never asked. Turning the field into a question in the user's language is the agent's job (M4).
 - **Alternatives considered:** Never asking sensitive fields while any other field is missing (would hide a scholarship that only needs the category until every unrelated question is answered); weighting by scheme benefit (no benefit data yet).
 - **Consequences:** The agent must track declined fields per session. A sensitive field is asked first only when strictly more schemes need it than any other field.
+
+## D-028 — Eligibility eval set v0: independent reference labels and their judgement calls
+
+- **Date:** 2026-10-17
+- **Task:** M2-T07
+- **Status:** accepted (labels pending the human check in M2-T08)
+- **Context:** TRD §12.1 asks for programmatically generated profiles with hand-checked labels. If the labels came from the rules under test, the eval would always pass. Many official criteria can't be expressed with `UserProfile` fields.
+- **Decision:**
+  - **Independent reference.** `sahayak.evals.reference` writes each scheme's criteria again in plain Python (its own three-valued logic, not the engine or the DSL), from the official source text in the manifest. It labels 30 hand-designed personas: typical citizens, boundary variants (ages 9/10, 17/18, 40/41, 21, 65/66, 70; incomes exactly at and Rs 1 over Rs 1,80,000 and Rs 2,50,000) and four profiles with missing fields. Every scheme gets ELIGIBLE, NOT_ELIGIBLE and NEEDS_INFO labels. Each label carries a one-line reason. `label_status` is `generated` until a human checks it and sets `checked`. The generator refuses to overwrite checked labels, and a test keeps unchecked labels equal to the generator.
+  - **Unexpressible criteria.** A further restriction that the application process checks (no LPG connection in the household, a kutcha house, a bank account, no EPF/ESIC/NPS cover, one beneficiary per family) is assumed to be met. An alternative route that can't be expressed (PM-JAY's SECC 2011 lists) doesn't count, so only the expressible route can make the scheme ELIGIBLE.
+  - **Judgement calls for the M2-T08 check:**
+    - PM-SYM and PMAY-G "monthly income ≤ Rs 15,000" is approximated as annual family income ≤ Rs 1,80,000. PM-SYM's unorganised workers are farmer, agri_labourer, daily_wage, street_vendor, artisan and self_employed (not student, salaried, homemaker, unemployed or other).
+    - PM-KISAN needs land > 0 and no government employee or income-tax payer, whatever the person's own occupation. Government employees are also excluded from PM-SYM (NPS cover).
+    - AB PM-JAY: age ≥ 70 outside DL, WB and OD (the September 2024 source; Delhi and Odisha may have joined since). Under 70 is NOT_ELIGIBLE, because the SECC route can't be expressed.
+    - PMAY-G doesn't use "irrigated land > 2.5 acres", because the profile can't tell irrigated land from other land.
+    - SSY: under 10 in completed years, so a girl who has turned 10 is NOT_ELIGIBLE.
+    - Majhi Ladki Bahin: any marital status qualifies, because "one unmarried woman in the family" is eligible. State means residence (`state`), not `domicile_state`.
+- **Alternatives considered:** Labelling from the approved rules (circular); random profiles only (few boundary cases among 30).
+- **Consequences:** A preview against the 10 M1 drafts (`sahayak eval --rules latest --no-record`) gives 97.7% (293/300). All 7 mismatches are mistakes in the drafts that review should fix: the PM-KISAN non-creamy-layer exclusion, the PM Vishwakarma trade names and BPL condition, SSY age ≤ 10, Ladki Bahin excluding unmarried women, and PMAY-G's caste and BPL alternatives. Because most labels are NOT_ELIGIBLE, overall accuracy flatters. The per-scheme ELIGIBLE recall in the report is the more telling number. M12 grows the set to 200 profiles.
