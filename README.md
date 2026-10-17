@@ -53,6 +53,35 @@ Drafts are never used until a human approves them: the rule engine, not the LLM,
 eligibility. `--reindex` re-embeds everything after changing the embedding model, and `--redraft`
 drafts again from unchanged text. See D-018 to D-021 in [docs/DECISIONS.md](docs/DECISIONS.md).
 
+After approving rules, snapshot them for CI and commit the result:
+
+```sh
+uv run sahayak rules export                # approved rules -> data/rules/<scheme_id>.json
+uv run sahayak rules schema                # JSON Schema of a rule document
+```
+
+## Eligibility engine and evals
+
+`sahayak.eligibility` is pure Python. `UserProfile` holds what is known about a citizen (`None`
+means not known yet). `evaluate(rule, profile)` returns `ELIGIBLE`, `NOT_ELIGIBLE` or
+`NEEDS_INFO`, with the conditions that passed or failed and the fields still missing.
+`next_question` picks the missing field that the most undecided schemes need, asking at most 8
+questions. See D-023 to D-027.
+
+The eval set [evals/profiles.jsonl](evals/profiles.jsonl) has 30 synthetic profiles labelled for
+the 10 schemes, with a reason for each label (D-028). It is regenerated with
+`uv run python -m sahayak.evals.reference`, which never overwrites labels marked `checked`.
+
+```sh
+uv run sahayak eval --suite eligibility                  # data/rules/ snapshot, records an eval_runs row
+uv run sahayak eval --no-record                          # no database needed
+uv run sahayak eval --rules latest --no-record           # preview the current drafts
+```
+
+Each run writes `evals/reports/<date>-eligibility.md` (accuracy, confusion matrix, per-scheme
+precision/recall/F1 and every mismatch) and exits 1 below `--min-accuracy` (default 0.9). CI runs
+it on every PR.
+
 ### Windows notes
 
 - If the repo lives under OneDrive, set `UV_LINK_MODE=copy` (OneDrive rejects uv's hard links),
