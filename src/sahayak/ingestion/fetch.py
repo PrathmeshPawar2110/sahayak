@@ -30,6 +30,10 @@ log = structlog.get_logger(__name__)
 
 DocumentKind = Literal["html", "pdf"]
 MAX_BYTES = 50 * 1024 * 1024
+# A connection that could not be set up is tried once more: no request reached the server, and
+# some hosts reliably fail the first connect of a process (seen behind NAT64).
+CONNECT_ATTEMPTS = 2
+_CONNECT_ERRORS = (httpx.ConnectError, httpx.ConnectTimeout)
 _RATE_RE = re.compile(r"^(?P<count>\d+(?:\.\d+)?)/(?P<unit>[smh])$")
 _UNIT_SECONDS = {"s": 1.0, "m": 60.0, "h": 3600.0}
 
@@ -153,35 +157,55 @@ class Fetcher:
             if meta.last_modified:
                 headers["If-Modified-Since"] = meta.last_modified
 
-        await self._limiter.wait(parts.netloc)
         try:
-            async with self._client.stream(
-                "GET", url, headers=headers, follow_redirects=True
-            ) as response:
-                if response.status_code == 304 and meta is not None:
-                    return await self._reuse(path, meta)
-                if response.status_code != 200:
-                    raise FetchError(f"HTTP {response.status_code} for {url}")
-                body = await self._read_limited(response, url)
-                content_type = response.headers.get("content-type", "")
-                kind = _kind(content_type, body, url)
-                document = FetchedDocument(
-                    url=url,
-                    final_url=str(response.url),
-                    kind=kind,
-                    content_type=content_type,
-                    sha256=hashlib.sha256(body).hexdigest(),
-                    fetched_at=datetime.now(UTC),
-                    path=path.with_suffix(f".{kind}"),
-                    not_modified=False,
-                )
-                await self._store(document, body, response.headers)
+            return await self._connect_retrying(
+                parts.netloc, url, lambda: self._download(url, path, meta, headers)
+            )
         except httpx.HTTPError as exc:
             raise FetchError(f"{type(exc).__name__} fetching {url}") from exc
+
+    async def _download(
+        self, url: str, path: Path, meta: _Meta | None, headers: dict[str, str]
+    ) -> FetchedDocument:
+        async with self._client.stream(
+            "GET", url, headers=headers, follow_redirects=True
+        ) as response:
+            if response.status_code == 304 and meta is not None:
+                return await self._reuse(path, meta)
+            if response.status_code != 200:
+                raise FetchError(f"HTTP {response.status_code} for {url}")
+            body = await self._read_limited(response, url)
+            content_type = response.headers.get("content-type", "")
+            kind = _kind(content_type, body, url)
+            document = FetchedDocument(
+                url=url,
+                final_url=str(response.url),
+                kind=kind,
+                content_type=content_type,
+                sha256=hashlib.sha256(body).hexdigest(),
+                fetched_at=datetime.now(UTC),
+                path=path.with_suffix(f".{kind}"),
+                not_modified=False,
+            )
+            await self._store(document, body, response.headers)
         log.info(
             "fetched", url=url, kind=document.kind, bytes=len(body), sha256=document.sha256[:12]
         )
         return document
+
+    async def _connect_retrying[T](
+        self, netloc: str, url: str, request: Callable[[], Awaitable[T]]
+    ) -> T:
+        """Run `request` after the rate limit, retrying when no connection could be made."""
+        for attempt in range(1, CONNECT_ATTEMPTS + 1):
+            await self._limiter.wait(netloc)
+            try:
+                return await request()
+            except _CONNECT_ERRORS as exc:
+                if attempt == CONNECT_ATTEMPTS:
+                    raise
+                log.info("connect_retry", url=url, attempt=attempt, error=type(exc).__name__)
+        raise AssertionError("unreachable: the loop returns or raises")  # pragma: no cover
 
     # ------------------------------------------------------------------ robots.txt
 
@@ -193,12 +217,15 @@ class Fetcher:
         return parser is not None and parser.can_fetch(self._user_agent, url)
 
     async def _load_robots(self, robots_url: str) -> RobotFileParser | None:
-        await self._limiter.wait(urlsplit(robots_url).netloc)
         parser = RobotFileParser(robots_url)
         try:
-            response = await self._client.get(robots_url, follow_redirects=True)
-        except httpx.HTTPError:
-            log.warning("robots_unreachable", url=robots_url)
+            response = await self._connect_retrying(
+                urlsplit(robots_url).netloc,
+                robots_url,
+                lambda: self._client.get(robots_url, follow_redirects=True),
+            )
+        except httpx.HTTPError as exc:
+            log.warning("robots_unreachable", url=robots_url, error=type(exc).__name__)
             return None
         if response.status_code >= 500:
             log.warning("robots_unreachable", url=robots_url, status=response.status_code)

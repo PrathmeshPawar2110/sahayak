@@ -230,3 +230,13 @@ Record one entry per decision, newest last. Reference them from `IMPLEMENTATION.
   - **Entry points.** `sahayak` (`[project.scripts]`) and `python -m sahayak.cli`. The second works where Smart App Control blocks the generated `sahayak.exe` shim (D-007).
 - **Alternatives considered:** Drafting from whatever was fetched (see above); a review web UI (later, with the admin API); a single transaction per scheme (an LLM outage would roll back indexing).
 - **Consequences:** Rules exist only for schemes whose sources all fetched in the same run. The review is terminal-only and synchronous, and long source text scrolls in the terminal.
+
+## D-021 — The fetcher retries a failed connection once
+
+- **Date:** 2026-10-17
+- **Task:** M1-T07 (found during the M1 exit run)
+- **Status:** accepted
+- **Context:** On the dev network (IPv6 with NAT64), the first TCP connection a process makes to `zpyavatmal.gov.in` often times out, and later ones succeed. The fetcher asks for `robots.txt` once per host per run, so that first attempt always failed. RFC 9309 then means "disallow everything", and `mh-mjpjay` lost a source on every run (5 runs in a row). Government hosts time out often in general (D-011).
+- **Decision:** `ConnectError` and `ConnectTimeout` (no request reached the server) are retried once, for documents and `robots.txt`, with each attempt going through the per-domain rate limiter. Read timeouts and HTTP errors are not retried in the same run, because the server may already have processed the request; the next run will try again.
+- **Alternatives considered:** Forcing IPv4 (works here, but breaks IPv6-only hosts); retrying every transport error (could double load on a struggling server).
+- **Consequences:** An unreachable host costs at most two connect timeouts per run. With the retry, all 15 manifest sources fetched in the M1 exit run.

@@ -137,7 +137,7 @@ async def test_unreachable_robots_means_disallowed(
 ) -> None:
     limiter = DomainRateLimiter(0.0, sleep=no_sleep)
     with respx.mock() as web:
-        web.get("https://scheme.gov.in/robots.txt").mock(side_effect=[robots])
+        web.get("https://scheme.gov.in/robots.txt").mock(side_effect=[robots, robots])
         async with Fetcher(tmp_path, user_agent=UA, limiter=limiter) as fetcher:
             with pytest.raises(FetchError, match="disallows"):
                 await fetcher.fetch(PAGE)
@@ -177,6 +177,48 @@ async def test_network_errors_become_fetch_errors(fetcher: Fetcher, web: respx.M
 
     with pytest.raises(FetchError, match="ConnectTimeout"):
         await fetcher.fetch(PAGE)
+
+
+async def test_failed_connect_is_retried_once(fetcher: Fetcher, web: respx.MockRouter) -> None:
+    route = web.get(PAGE).mock(
+        side_effect=[httpx.ConnectTimeout("timed out"), httpx.Response(200, content=HTML_BODY)]
+    )
+
+    document = await fetcher.fetch(PAGE)
+
+    assert route.call_count == 2
+    assert document.kind == "html"
+
+
+async def test_connect_retry_gives_up_after_two_attempts(
+    fetcher: Fetcher, web: respx.MockRouter
+) -> None:
+    route = web.get(PAGE).mock(side_effect=httpx.ConnectError("refused"))
+
+    with pytest.raises(FetchError, match="ConnectError"):
+        await fetcher.fetch(PAGE)
+    assert route.call_count == 2
+
+
+async def test_read_timeouts_are_not_retried(fetcher: Fetcher, web: respx.MockRouter) -> None:
+    # The request may have reached the server: leave retrying to the next run.
+    route = web.get(PAGE).mock(side_effect=httpx.ReadTimeout("slow"))
+
+    with pytest.raises(FetchError, match="ReadTimeout"):
+        await fetcher.fetch(PAGE)
+    assert route.call_count == 1
+
+
+async def test_robots_txt_connect_is_retried(tmp_path: Path) -> None:
+    limiter = DomainRateLimiter(0.0, sleep=no_sleep)
+    with respx.mock() as web:
+        robots = web.get("https://scheme.gov.in/robots.txt").mock(
+            side_effect=[httpx.ConnectTimeout("timed out"), httpx.Response(404)]
+        )
+        web.get(PAGE).respond(200, content=HTML_BODY)
+        async with Fetcher(tmp_path, user_agent=UA, limiter=limiter) as fetcher:
+            await fetcher.fetch(PAGE)
+    assert robots.call_count == 2
 
 
 async def test_rejects_non_http_urls(fetcher: Fetcher) -> None:
