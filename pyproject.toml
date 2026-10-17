@@ -6,23 +6,37 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.20.0",
+    "anthropic>=1.13.0",
     "asyncpg>=0.32.0",
+    "certifi>=2026.7.22",
     "fastapi>=0.143.0",
+    "fastembed>=0.9.0",
+    "httpx>=0.28.1",
+    "jinja2>=3.1.6",
+    "openai>=2",
     "opentelemetry-api>=1.45.1",
     "opentelemetry-instrumentation-fastapi>=0.66b1",
     "opentelemetry-sdk>=1.45.1",
     "pgvector>=0.5.1",
     "pydantic>=2.14.0",
     "pydantic-settings>=2.15.0",
+    "pymupdf>=1.28.2",
+    "pyyaml>=6.0.3",
     "redis>=8.1.0",
     "sqlalchemy[asyncio]>=2.1.4",
     "structlog>=26.1.0",
+    "trafilatura>=2.3.1",
+    "typer>=0.27.3",
     "uvicorn[standard]>=0.54.0",
 ]
+
+[project.scripts]
+sahayak = "sahayak.cli:app"
 
 [dependency-groups]
 dev = [
     "asgi-lifespan>=2.1.0",
+    "fakeredis>=2.39.0",
     "httpx>=0.28.1",
     "mypy>=2.4.0",
     "pre-commit>=4.6.2",
@@ -32,6 +46,7 @@ dev = [
     "respx>=0.23.1",
     "ruff>=0.17.0",
     "rust-just>=1.58.0",
+    "types-pyyaml>=6.0.12.20260906",
 ]
 # Populated in M5 (STT/TTS providers, audio transcoding helpers).
 voice = []
@@ -92,6 +107,8 @@ plugins = ["pydantic.mypy"]
 # Migration modules are named like 20261010_0001_baseline.py (not importable names).
 exclude = ["src/sahayak/db/alembic/versions/"]
 warn_unreachable = true
+# pymupdf ships partial annotations; its unannotated functions are still safe to call.
+untyped_calls_exclude = ["pymupdf"]
 
 [tool.pydantic-mypy]
 init_forbid_extra = true

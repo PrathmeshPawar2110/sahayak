@@ -1,0 +1,24 @@
+# Two synthetic schemes for the end-to-end ingestion test (M1-T13). The documents next to this
+# file are written for the test; they imitate the shape of real scheme sources only.
+version: 1
+schemes:
+  - id: test-kisan
+    names:
+      en: Kisan Aay Sahayata Yojana (test)
+      hi: किसान आय सहायता योजना (परीक्षण)
+    level: central
+    ministry: Ministry of Agriculture (test)
+    benefits: Rs 6,000 a year to landholding farmer families.
+    sources:
+      - url: https://agri.example.gov.in/kasy/guidelines.pdf
+
+  - id: mh-test-bahin
+    names:
+      en: Mukhyamantri Bahin Sahayata Yojana (test)
+      mr: मुख्यमंत्री बहीण सहाय्यता योजना (चाचणी)
+    level: state
+    state: MH
+    sources:
+      - url: https://wcd.example.gov.in/bahin/hi.html
+        language: hi
+      - url: https://wcd.example.gov.in/bahin/en.html
