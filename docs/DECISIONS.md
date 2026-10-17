@@ -261,3 +261,17 @@ Record one entry per decision, newest last. Reference them from `IMPLEMENTATION.
 - **Alternatives considered:** Keeping the catalogue separate (two sources of truth); a `"prefer_not_to_say"` value on every sensitive field (the TRD allows it only for `religion`; a declined field stays `None` and the planner is told not to ask again, see D-027).
 - **Consequences:** Adding a profile field is a one-place change plus the literal. Rule values are checked against the same constraints as profile values, so a rule such as `state == "mh"` or `age < 200` is flagged.
 
+## D-024 — Three-valued evaluation: `exists`, short-circuiting and what a result reports
+
+- **Date:** 2026-10-17
+- **Task:** M2-T03
+- **Status:** accepted
+- **Context:** TRD §9.2 asks for `NEEDS_INFO` when a field the result depends on is unknown, but leaves open what `exists` means for an unknown field, which conditions a result reports, and which missing fields count.
+- **Decision:**
+  - **Kleene logic.** `all` is FALSE if any item is FALSE, else UNKNOWN if any is UNKNOWN. `any` is the dual. `not` keeps UNKNOWN.
+  - **`exists`** is TRUE when the field has a value and UNKNOWN when it is `None`, never FALSE. `None` means "not asked yet", so `exists` makes the planner ask for the field instead of silently ruling the scheme out (FR-27).
+  - **Short-circuit.** A definite result reports only the conditions that decided it: a FALSE `all` lists its failed items and no missing fields, so a scheme that is already ruled out never drives a question. An ELIGIBLE result never lists a failed condition, and a NOT_ELIGIBLE one never lists a passed condition. A NEEDS_INFO result lists what is known so far and the unknown fields inside the undecided parts of the rule.
+  - **Negation.** Each reported condition is a `ConditionCheck` with `negated` (under an odd number of `not`s) and `met`, so `not any(is_govt_employee == true)` reports "NOT (is_govt_employee == true)" as passed for a non-employee.
+  - **Types.** `True` never equals `1`. Numbers compare as numbers. A type mismatch raises `ValueError`, which can't happen with validated rules.
+- **Alternatives considered:** `exists` as FALSE for `None` (rules out schemes before asking); reporting every leaf (an ELIGIBLE result would list failed alternatives of an `any`).
+- **Consequences:** Kleene logic is sound but not complete: `any(age > 5, age <= 5)` stays NEEDS_INFO until age is known. Rules don't contain tautologies, so this costs at most an extra question. Property tests check soundness (a definite verdict never changes when more fields are filled in), agreement with two-valued logic on complete profiles, and that answering a field never adds missing fields.
