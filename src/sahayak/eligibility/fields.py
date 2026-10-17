@@ -56,10 +56,10 @@ class ProfileField:
     name: str
     kind: FieldKind
     description: str
+    # Validates one value against the field's type and constraints (range, pattern...).
+    adapter: TypeAdapter[Any] = field(compare=False, repr=False)
     choices: tuple[str, ...] = ()
     sensitive: bool = False  # TRD §8B: optional, consent-gated, never inferred
-    # Validates one value against the field's type and constraints (range, pattern...).
-    adapter: TypeAdapter[Any] | None = field(default=None, compare=False, repr=False)
 
     def value_problem(self, value: object) -> str | None:
         """Why `value` can't be a value of this field, or None if it can."""
@@ -76,8 +76,6 @@ class ProfileField:
         }[self.kind]
         if not type_ok:
             return f"{value!r} is not a valid {self.kind} for {self.name}"
-        if self.adapter is None:
-            return None
         try:
             normalised = self.adapter.validate_python(value)
         except ValidationError as exc:
@@ -103,7 +101,7 @@ def _profile_field(name: str, info: FieldInfo) -> ProfileField:
         description=info.description or name,
         choices=choices,
         sensitive=bool(extra.get("sensitive", False)),
-        adapter=None if kind == "enum" else TypeAdapter(_with_metadata(inner, info)),
+        adapter=TypeAdapter(_with_metadata(inner, info)),
     )
 
 

@@ -71,6 +71,8 @@ jobs:
           enable-cache: true
       - run: uv sync --locked
       - run: uv run pytest --cov --cov-report=term
+      - name: Rule engine coverage (at least 95%, M2 exit criterion)
+        run: uv run coverage report --include="*/sahayak/eligibility/*" --fail-under=95
 
   compose:
     name: Docker image and compose smoke test
