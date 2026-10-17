@@ -31,13 +31,16 @@ class Settings(BaseSettings):
     otel_traces_exporter: Literal["none", "console"] = "none"
 
     # --- LLM
-    llm_provider: Literal["azure_openai", "anthropic"] = "azure_openai"
+    llm_provider: Literal["azure_openai", "openai", "anthropic"] = "azure_openai"
     azure_openai_endpoint: str = ""
     azure_openai_api_key: SecretStr = _EMPTY_SECRET
     azure_openai_deployment: str = ""
     # Not in TRD §15 (added in M1-T02/T04, see D-013).
     azure_openai_api_version: str = "2024-10-21"
     azure_openai_embedding_deployment: str = ""
+    # Not in TRD §15 (added for OpenAI's own API, see D-022).
+    openai_api_key: SecretStr = _EMPTY_SECRET
+    openai_model: str = "gpt-4o"
     anthropic_api_key: SecretStr = _EMPTY_SECRET
     anthropic_model: str = "claude-opus-5-5"
     llm_timeout_sec: float = Field(default=120.0, gt=0)

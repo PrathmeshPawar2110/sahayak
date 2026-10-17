@@ -7,6 +7,7 @@ from sahayak.llm.azure_openai import AzureOpenAIProvider
 from sahayak.llm.base import ChatMessage, LLMError, LLMTransientError, RetryPolicy
 from sahayak.llm.factory import LLMConfigError, create_llm_provider
 from sahayak.llm.fake import FakeCall, FakeLLMProvider
+from sahayak.llm.openai_chat import OpenAIProvider
 
 
 class Answer(BaseModel):
@@ -91,6 +92,13 @@ def test_factory_builds_azure_by_default() -> None:
     assert provider.model == "gpt-4o"
 
 
+def test_factory_builds_openai() -> None:
+    provider = create_llm_provider(make_settings(llm_provider="openai", openai_api_key="k"))
+
+    assert isinstance(provider, OpenAIProvider)
+    assert provider.model == "gpt-4o"
+
+
 def test_factory_builds_anthropic() -> None:
     provider = create_llm_provider(make_settings(llm_provider="anthropic", anthropic_api_key="k"))
 
@@ -103,6 +111,8 @@ def test_factory_builds_anthropic() -> None:
     [
         ({}, "AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, AZURE_OPENAI_DEPLOYMENT"),
         ({"llm_provider": "anthropic"}, "ANTHROPIC_API_KEY"),
+        ({"llm_provider": "openai"}, "OPENAI_API_KEY"),
+        ({"llm_provider": "openai", "openai_api_key": "k", "openai_model": ""}, "OPENAI_MODEL"),
         ({"llm_provider": "anthropic", "anthropic_api_key": "k", "anthropic_model": ""}, "MODEL"),
     ],
 )

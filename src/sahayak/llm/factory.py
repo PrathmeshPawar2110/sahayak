@@ -22,6 +22,19 @@ def create_llm_provider(settings: Settings) -> LLMProvider:
             timeout_sec=settings.llm_timeout_sec,
         )
 
+    if settings.llm_provider == "openai":
+        if not settings.openai_api_key.get_secret_value():
+            raise LLMConfigError("LLM_PROVIDER=openai needs OPENAI_API_KEY")
+        if not settings.openai_model:
+            raise LLMConfigError("LLM_PROVIDER=openai needs OPENAI_MODEL")
+        from sahayak.llm.openai_chat import OpenAIProvider
+
+        return OpenAIProvider(
+            api_key=settings.openai_api_key.get_secret_value(),
+            model=settings.openai_model,
+            timeout_sec=settings.llm_timeout_sec,
+        )
+
     missing = [
         name
         for name, value in (

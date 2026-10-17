@@ -21,6 +21,7 @@ from sahayak.llm.base import (
     LLMTransientError,
     RetryPolicy,
 )
+from sahayak.llm.openai_chat import OpenAIProvider
 
 Handler = Callable[[httpx2.Request], httpx2.Response]
 
@@ -109,6 +110,20 @@ HARNESSES = [
             api_key="test-key",
             deployment="gpt-4o",
             api_version="2024-10-21",
+            timeout_sec=5,
+            retry=RetryPolicy(sleep=no_sleep),
+            http_client=http,
+        ),
+        ok=openai_completion,
+        refusal=lambda: openai_completion(None, refusal="I can't help with that."),
+        truncated=lambda: openai_completion('{"scheme": "pm-', finish_reason="length"),
+        system_of=openai_system,
+    ),
+    Harness(
+        name="openai",
+        build=lambda http: OpenAIProvider(
+            api_key="test-key",
+            model="gpt-4o",
             timeout_sec=5,
             retry=RetryPolicy(sleep=no_sleep),
             http_client=http,
@@ -264,6 +279,24 @@ async def test_azure_targets_the_deployment_and_api_version() -> None:
     url = server.requests[0].url
     assert url.path == "/openai/deployments/gpt-4o/chat/completions"
     assert url.params["api-version"] == "2024-10-21"
+
+
+async def test_openai_targets_the_public_api_with_the_model() -> None:
+    server = Server(ok(openai_completion("ok")))
+
+    await provider_for(HARNESSES[2], server).complete(QUESTION)
+
+    request = server.requests[0]
+    assert str(request.url) == "https://api.openai.com/v1/chat/completions"
+    assert request.headers["authorization"] == "Bearer test-key"
+    assert server.body()["model"] == "gpt-4o"
+
+
+async def test_openai_errors_name_the_provider() -> None:
+    server = Server(error(403))
+
+    with pytest.raises(LLMError, match="openai HTTP 403"):
+        await provider_for(HARNESSES[2], server).complete(QUESTION)
 
 
 async def test_anthropic_sends_the_schema_as_output_config() -> None:

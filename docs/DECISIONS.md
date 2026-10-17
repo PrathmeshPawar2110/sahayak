@@ -240,3 +240,13 @@ Record one entry per decision, newest last. Reference them from `IMPLEMENTATION.
 - **Decision:** `ConnectError` and `ConnectTimeout` (no request reached the server) are retried once, for documents and `robots.txt`, with each attempt going through the per-domain rate limiter. Read timeouts and HTTP errors are not retried in the same run, because the server may already have processed the request; the next run will try again.
 - **Alternatives considered:** Forcing IPv4 (works here, but breaks IPv6-only hosts); retrying every transport error (could double load on a struggling server).
 - **Consequences:** An unreachable host costs at most two connect timeouts per run. With the retry, all 15 manifest sources fetched in the M1 exit run.
+
+## D-022 — OpenAI's own API as a third LLM provider
+
+- **Date:** 2026-10-17
+- **Task:** M1-T02 (follow-up, during the M1 exit run)
+- **Status:** accepted
+- **Context:** The Azure OpenAI resource available for development (`maqopenai`) rejects requests from the dev machine with HTTP 403 ("Access denied due to Virtual Network/Firewall rules"). Prathmesh chose to use OpenAI's API directly instead.
+- **Decision:** `LLM_PROVIDER=openai` with `OPENAI_API_KEY` and `OPENAI_MODEL` (default `gpt-4o`, which supports strict structured outputs). Azure OpenAI and OpenAI share the chat-completions code in `llm/openai_chat.py`; `AzureOpenAIProvider` and `OpenAIProvider` only build their SDK client. Error messages now name the provider (`openai HTTP 403`, `azure_openai HTTP 403`). Azure OpenAI stays the TRD default, so nothing else changes.
+- **Alternatives considered:** Replacing Azure entirely (the TRD's production plan uses Azure); pointing the Azure client at OpenAI's endpoint (the URL and auth schemes differ).
+- **Consequences:** The provider contract tests run against all three providers. Embeddings are unaffected (local e5 by default).
