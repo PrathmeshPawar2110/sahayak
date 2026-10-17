@@ -250,3 +250,14 @@ Record one entry per decision, newest last. Reference them from `IMPLEMENTATION.
 - **Decision:** `LLM_PROVIDER=openai` with `OPENAI_API_KEY` and `OPENAI_MODEL` (default `gpt-4o`, which supports strict structured outputs). Azure OpenAI and OpenAI share the chat-completions code in `llm/openai_chat.py`; `AzureOpenAIProvider` and `OpenAIProvider` only build their SDK client. Error messages now name the provider (`openai HTTP 403`, `azure_openai HTTP 403`). Azure OpenAI stays the TRD default, so nothing else changes.
 - **Alternatives considered:** Replacing Azure entirely (the TRD's production plan uses Azure); pointing the Azure client at OpenAI's endpoint (the URL and auth schemes differ).
 - **Consequences:** The provider contract tests run against all three providers. Embeddings are unaffected (local e5 by default).
+
+## D-023 — `UserProfile` is the single source of truth for rule fields
+
+- **Date:** 2026-10-17
+- **Task:** M2-T02
+- **Status:** accepted
+- **Context:** M1 kept a hand-written catalogue of the 26 eligibility fields (D-019). M2-T02 adds the TRD §9.1 `UserProfile`, and two copies of field types and choices would drift apart.
+- **Decision:** `sahayak.eligibility.profile.UserProfile` follows TRD §9.1 field for field, with `FieldSource` from §8C. Only `language` is required. `None` always means "not known yet". Constraints the TRD implies are validated: ages 0–130, non-negative income, land and child counts, percentages 0–100. State codes are trimmed, upper-cased and must be two letters (ISO 3166-2:IN, e.g. `MH`). Unknown keys are rejected, assignments are validated, and `field_sources` keys must be profile fields. Sensitive fields (TRD §8B) carry `json_schema_extra={"sensitive": true}`. `eligibility.fields.PROFILE_FIELDS` is now derived from the model (kind, choices, description, sensitivity and a validator for each field's range or pattern). The static `ProfileFieldName` literal stays, for the LLM schema, and a test keeps it equal to the model.
+- **Alternatives considered:** Keeping the catalogue separate (two sources of truth); a `"prefer_not_to_say"` value on every sensitive field (the TRD allows it only for `religion`; a declined field stays `None` and the planner is told not to ask again, see D-027).
+- **Consequences:** Adding a profile field is a one-place change plus the literal. Rule values are checked against the same constraints as profile values, so a rule such as `state == "mh"` or `age < 200` is flagged.
+
