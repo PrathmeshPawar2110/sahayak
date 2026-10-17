@@ -39,7 +39,7 @@
 | Milestone | Title | TRD ref | Status | Started | Completed |
 |---|---|---|---|---|---|
 | M0 | Project skeleton | §14, §13, §17 | `DONE` | 2026-10-10 | 2026-10-10 |
-| M1 | Data layer and ingestion | §8, §9 | `TODO` | | |
+| M1 | Data layer and ingestion | §8, §9 | `IN_PROGRESS` | 2026-10-10 | |
 | M2 | Rule engine and question planner | §9.2, §10 | `TODO` | | |
 | M3 | RAG retriever | §7, §8 | `TODO` | | |
 | M4 | LangGraph agent (text only) | §10, §11 | `TODO` | | |
@@ -84,20 +84,20 @@
 
 ## M1 — Data layer and ingestion
 
-**Status:** `TODO`
+**Status:** `IN_PROGRESS`
 
 | ID | Task | Owner | Depends | Status | Notes |
 |---|---|---|---|---|---|
-| M1-T01 | SQLAlchemy models + Alembic migration for `schemes`, `scheme_chunks` (vector + tsvector with GIN and HNSW indexes), `eligibility_rules`, `sessions`, `profiles`, `messages`, `eval_runs` (TRD §9.3). Include scheme `status`, `aliases`, `launched_at`, `ends_at`, `last_verified_at` now so M9 needs no rework. | CC | M0 | `TODO` | |
-| M1-T02 | `LLMProvider` interface (`base.py`) with structured-output method; Azure OpenAI implementation; Anthropic implementation; fake provider for tests. Retries with exponential backoff (3 tries). | CC | M0 | `TODO` | |
-| M1-T03 | Prompt loader: prompts as versioned Markdown files in `src/sahayak/llm/prompts/`, with Jinja2 variables. | CC | M1-T02 | `TODO` | |
-| M1-T04 | `EmbeddingProvider` interface; local `multilingual-e5-large` implementation (with the correct `query:`/`passage:` prefixes); Azure implementation; Redis embedding cache. | CC | M0 | `TODO` | |
-| M1-T05 | `data/schemes/manifest.yaml` schema (id, names, level, state, source URLs) and the **first 10 schemes** (TRD §8 list). | CC | — | `TODO` | |
-| M1-T06 | Check licence, freshness and fields of the myScheme seed datasets (Hugging Face / Kaggle) and confirm myScheme `robots.txt`/terms. Record findings as a decision. | CC | — | `TODO` | |
-| M1-T07 | Fetcher: download HTML/PDF to `data/raw/` with rate limiting, user agent, ETag caching, source URL + fetch date recorded. | CC | M1-T05 | `TODO` | |
-| M1-T08 | Parsers: HTML (trafilatura) and PDF (pymupdf), keeping section headings; normalisation of Devanagari text. | CC | M1-T07 | `TODO` | |
-| M1-T09 | Chunker: ~500 tokens, 80 overlap, section-aware; metadata (`scheme_id`, `section`, `language`, `source_url`). Unit tests. | CC | M1-T08 | `TODO` | |
-| M1-T10 | Indexer: upsert chunks + embeddings + tsvector; idempotent by content hash (re-run creates no duplicates). | CC | M1-T01, M1-T04, M1-T09 | `TODO` | |
+| M1-T01 | SQLAlchemy models + Alembic migration for `schemes`, `scheme_chunks` (vector + tsvector with GIN and HNSW indexes), `eligibility_rules`, `sessions`, `profiles`, `messages`, `eval_runs` (TRD §9.3). Include scheme `status`, `aliases`, `launched_at`, `ends_at`, `last_verified_at` now so M9 needs no rework. | CC | M0 | `DONE` | ORM models + migration for catalogue, chunks (HNSW + GIN), rules, sessions, evals. e4fd80b |
+| M1-T02 | `LLMProvider` interface (`base.py`) with structured-output method; Azure OpenAI implementation; Anthropic implementation; fake provider for tests. Retries with exponential backoff (3 tries). | CC | M0 | `DONE` | LLMProvider with Azure OpenAI, Anthropic and fake providers; 3-try backoff (see D-014). d145dd0 |
+| M1-T03 | Prompt loader: prompts as versioned Markdown files in `src/sahayak/llm/prompts/`, with Jinja2 variables. | CC | M1-T02 | `DONE` | Versioned Markdown prompt loader with Jinja2. c7ba87e |
+| M1-T04 | `EmbeddingProvider` interface; local `multilingual-e5-large` implementation (with the correct `query:`/`passage:` prefixes); Azure implementation; Redis embedding cache. | CC | M0 | `DONE` | EmbeddingProvider: local e5 via fastembed, Azure OpenAI, Redis cache (see D-015). 3533331, ba6b3d6 |
+| M1-T05 | `data/schemes/manifest.yaml` schema (id, names, level, state, source URLs) and the **first 10 schemes** (TRD §8 list). | CC | — | `DONE` | Manifest schema and the first 10 schemes. 5ac00c4 |
+| M1-T06 | Check licence, freshness and fields of the myScheme seed datasets (Hugging Face / Kaggle) and confirm myScheme `robots.txt`/terms. Record findings as a decision. | CC | — | `DONE` | Source, dataset and provider findings recorded (see D-011 to D-015). 72c981d |
+| M1-T07 | Fetcher: download HTML/PDF to `data/raw/` with rate limiting, user agent, ETag caching, source URL + fetch date recorded. | CC | M1-T05 | `DONE` | Polite fetcher: robots.txt, per-domain rate limit, conditional GETs (see D-016). 1282098 |
+| M1-T08 | Parsers: HTML (trafilatura) and PDF (pymupdf), keeping section headings; normalisation of Devanagari text. | CC | M1-T07 | `DONE` | HTML (trafilatura) and PDF (pymupdf) parsers keeping section headings. f92f1d2 |
+| M1-T09 | Chunker: ~500 tokens, 80 overlap, section-aware; metadata (`scheme_id`, `section`, `language`, `source_url`). Unit tests. | CC | M1-T08 | `DONE` | Section-aware chunker with overlap and stable chunk ids (see D-017). 8dbbe1e |
+| M1-T10 | Indexer: upsert chunks + embeddings + tsvector; idempotent by content hash (re-run creates no duplicates). | CC | M1-T01, M1-T04, M1-T09 | `DONE` | Idempotent indexer diffing chunks by content hash per source; 6 unit + 9 Postgres tests (see D-018). baa549e |
 | M1-T11 | Rule extraction: LLM reads the eligibility section and outputs `EligibilityRule` JSON (schema from M2-T01 — create a minimal version here if M2 not started), saved as `draft`. | CC | M1-T02, M1-T10 | `TODO` | |
 | M1-T12 | CLI (`typer`): `sahayak ingest [--scheme ID]`, `sahayak rules review <scheme_id>` (shows rule beside source text; approve / edit in `$EDITOR` / reject). | CC | M1-T11 | `TODO` | |
 | M1-T13 | Integration test: ingest 2 schemes from recorded fixtures end to end; re-run is idempotent. | CC | M1-T12 | `TODO` | |
