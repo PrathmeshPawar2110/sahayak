@@ -275,3 +275,26 @@ Record one entry per decision, newest last. Reference them from `IMPLEMENTATION.
   - **Types.** `True` never equals `1`. Numbers compare as numbers. A type mismatch raises `ValueError`, which can't happen with validated rules.
 - **Alternatives considered:** `exists` as FALSE for `None` (rules out schemes before asking); reporting every leaf (an ELIGIBLE result would list failed alternatives of an `any`).
 - **Consequences:** Kleene logic is sound but not complete: `any(age > 5, age <= 5)` stays NEEDS_INFO until age is known. Rules don't contain tautologies, so this costs at most an extra question. Property tests check soundness (a definite verdict never changes when more fields are filled in), agreement with two-valued logic on complete profiles, and that answering a field never adds missing fields.
+
+## D-025 — Rule validation on save: drafts may hold issues, approved rules may not
+
+- **Date:** 2026-10-17
+- **Task:** M2-T04
+- **Status:** accepted
+- **Context:** M2-T04 asks that unknown fields and operators are rejected and value types checked against `UserProfile` when a rule is saved. LLM drafts often contain such mistakes (3 of the 10 M1 drafts do), and D-019 keeps them so the reviewer can see and fix them.
+- **Decision:** Validation happens at three points.
+  - **Shape** (`parse_logic`): an unknown operator or combinator, or a malformed tree, is rejected before anything is stored, for drafts too (extraction and `rules review` edits already call it).
+  - **Meaning** (`validate_rule` / `rule_issues`): unknown fields, operators that don't suit the field, values outside the field's type, choices, range or pattern, empty groups, and duplicate document requirements. Drafts store these as `issues`, and approval is refused while any remain (D-020).
+  - **ORM guard:** a SQLAlchemy `before_insert` / `before_update` hook on `EligibilityRule` runs `validate_rule` whenever the row's status is `approved`. No code path, including future admin endpoints, can save an invalid live rule. Rules loaded for evaluation are validated again.
+- **Alternatives considered:** Rejecting invalid drafts at extraction (the reviewer would lose the draft and its excerpts); validating only in `approve_rule` (other write paths would bypass it).
+- **Consequences:** `sahayak.db.models` imports `sahayak.eligibility.rules`, which is pure Pydantic. A failed check raises `RuleValidationError` at flush time, listing every issue.
+
+## D-026 — Approved rules are exported to `data/rules/` for CI
+
+- **Date:** 2026-10-17
+- **Task:** M2-T04, M2-T09
+- **Status:** accepted
+- **Context:** The M2 exit criterion runs the eligibility eval in CI on approved rules. Approved rules live in Postgres and come from LLM ingestion plus human review, so CI can't rebuild them.
+- **Decision:** `sahayak rules export` writes every approved rule to `data/rules/<scheme_id>.json`, with `schema.json` (the rule JSON Schema). It removes files of schemes that no longer have an approved rule. The files are committed. The eval reads them by default (`--rules files`). `--rules db` reads approved rules from the database, and `--rules latest` previews the newest drafts for reviewers. Loading validates every file, accepts only `approved` rules, and checks that file names match `scheme_id`. A unit test fails if `schema.json` is out of date.
+- **Alternatives considered:** Seeding the CI database from a dump (binary, and harder to review); evaluating in CI only what the LLM drafts (not reproducible, and it would call a paid API).
+- **Consequences:** After approving rules, run `sahayak rules export` and commit the snapshot. The diff shows every rule change in review. The database stays the source of truth: the agent (M4) loads rules from it, not from the files.
