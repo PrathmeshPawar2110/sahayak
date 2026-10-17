@@ -74,6 +74,43 @@ jobs:
       - name: Rule engine coverage (at least 95%, M2 exit criterion)
         run: uv run coverage report --include="*/sahayak/eligibility/*" --fail-under=95
 
+  eval:
+    name: Eligibility eval (approved rules)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: sahayak
+          POSTGRES_PASSWORD: sahayak
+          POSTGRES_DB: sahayak
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sahayak -d sahayak"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql+asyncpg://sahayak:sahayak@localhost:5432/sahayak
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run alembic upgrade head
+      # Scores the committed rule snapshot (data/rules/) against evals/profiles.jsonl, fails
+      # below 90% accuracy, and records the run in eval_runs (D-026).
+      - run: uv run sahayak eval --suite eligibility --rules files
+      - name: Add the report to the job summary
+        if: always()
+        run: cat evals/reports/*-eligibility.md >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: eligibility-eval-report
+          path: evals/reports/*-eligibility.md
+          if-no-files-found: ignore
+
   compose:
     name: Docker image and compose smoke test
     runs-on: ubuntu-latest
