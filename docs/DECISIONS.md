@@ -298,3 +298,13 @@ Record one entry per decision, newest last. Reference them from `IMPLEMENTATION.
 - **Decision:** `sahayak rules export` writes every approved rule to `data/rules/<scheme_id>.json`, with `schema.json` (the rule JSON Schema). It removes files of schemes that no longer have an approved rule. The files are committed. The eval reads them by default (`--rules files`). `--rules db` reads approved rules from the database, and `--rules latest` previews the newest drafts for reviewers. Loading validates every file, accepts only `approved` rules, and checks that file names match `scheme_id`. A unit test fails if `schema.json` is out of date.
 - **Alternatives considered:** Seeding the CI database from a dump (binary, and harder to review); evaluating in CI only what the LLM drafts (not reproducible, and it would call a paid API).
 - **Consequences:** After approving rules, run `sahayak rules export` and commit the snapshot. The diff shows every rule change in review. The database stays the source of truth: the agent (M4) loads rules from it, not from the files.
+
+## D-027 — Question planner: tie-breaks, declined fields and output
+
+- **Date:** 2026-10-17
+- **Task:** M2-T05
+- **Status:** accepted
+- **Context:** TRD §10 `plan_question` picks the missing field that appears in the most NEEDS_INFO rules. It doesn't say how to break ties, what to do when a user declines a sensitive question (TRD §8B), or what the planner returns.
+- **Decision:** `next_question(results, profile, questions_asked=, max_questions=8, declined=())` returns a `PlannedQuestion` (field, the NEEDS_INFO scheme ids it feeds, whether it's sensitive) or `None`. It returns `None` when `questions_asked` has reached the limit, or when no NEEDS_INFO scheme has an askable field. Each scheme counts once per field. Ties go to non-sensitive fields, then to `UserProfile` field order, so the choice is deterministic. Known fields (re-checked against the profile) and `declined` fields are never asked. Turning the field into a question in the user's language is the agent's job (M4).
+- **Alternatives considered:** Never asking sensitive fields while any other field is missing (would hide a scholarship that only needs the category until every unrelated question is answered); weighting by scheme benefit (no benefit data yet).
+- **Consequences:** The agent must track declined fields per session. A sensitive field is asked first only when strictly more schemes need it than any other field.
