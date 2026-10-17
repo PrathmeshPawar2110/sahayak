@@ -73,7 +73,7 @@
 | M0-T10 | Test scaffolding: `tests/unit`, `tests/integration`, `tests/e2e`, fixtures for app client, DB (transaction rollback) and Redis; `live` pytest marker excluded by default. | CC | M0-T09 | `DONE` | Fixtures: app client, rollback-only db_session, Redis DB 15; markers by directory; live excluded; skip locally / fail in CI (see D-003). 7982858 |
 | M0-T11 | GitHub Actions CI: install with uv, ruff, mypy, pytest (unit + integration using service containers). | CC | M0-T10 | `DONE` | Jobs: lint (+pre-commit, gitleaks), test (pgvector + redis service containers), compose smoke test. Green in CI run 38052116905. 5eecff0, setup-uv pin 4dfe731 |
 | M0-T12 | `Makefile` or `justfile` with `up`, `down`, `test`, `lint`, `migrate`, `fmt`. | CC | M0-T08 | `DONE` | justfile via rust-just: up, down, test, lint, migrate, fmt (+ install, revision, dev) (see D-001). febd17b |
-| M0-T13 | Create Azure OpenAI (or Anthropic) API key and add it to local `.env`. | HUMAN | — | `TODO` | |
+| M0-T13 | Create Azure OpenAI (or Anthropic) API key and add it to local `.env`. | HUMAN | — | `DONE` | OpenAI API key (gpt-4o) in local `.env`, 2026-10-17. The Azure resource rejects this machine at its network firewall, so the OpenAI API is used instead (see D-022). |
 
 **Exit criteria**
 - [x] `docker compose up` starts all services; `/healthz` and `/readyz` return 200. *Verified in CI (`compose` job, run 38052116905): image builds, migrate exits 0, api runs as uid 10001, `/readyz`, `/healthz`, `/docs` OK. Not run locally (no Docker).*
@@ -101,11 +101,11 @@
 | M1-T11 | Rule extraction: LLM reads the eligibility section and outputs `EligibilityRule` JSON (schema from M2-T01 — create a minimal version here if M2 not started), saved as `draft`. | CC | M1-T02, M1-T10 | `DONE` | Minimal rule DSL + 26-field profile catalogue in `eligibility/`; fixed-depth LLM schema converted to the TRD tree; drafts keep excerpts, provenance and issues; 29 unit + 7 Postgres tests (see D-019). ec31548 |
 | M1-T12 | CLI (`typer`): `sahayak ingest [--scheme ID]`, `sahayak rules review <scheme_id>` (shows rule beside source text; approve / edit in `$EDITOR` / reject). | CC | M1-T11 | `DONE` | `sahayak ingest` (pipeline commits index before drafting; rules only from complete sources), `rules list`, `rules review` (approve blocked on issues, edit in $EDITOR, reject); 5 unit + 14 Postgres tests (see D-020). 7ebf978 |
 | M1-T13 | Integration test: ingest 2 schemes from recorded fixtures end to end; re-run is idempotent. | CC | M1-T12 | `DONE` | Two synthetic schemes (PDF; Hindi + English HTML) end to end with ETag-serving fixtures; re-run is all 304s and changes nothing; also change, outage and reindex cases. 4 tests. e05dbbf |
-| M1-T14 | Review and approve the draft rules for the first 10 schemes. | HUMAN | M1-T12 | `TODO` | Needs M0-T13 (LLM key) so `sahayak ingest` can draft the rules; then `sahayak rules review <id>` per scheme. |
+| M1-T14 | Review and approve the draft rules for the first 10 schemes. | HUMAN | M1-T12 | `TODO` | Drafts v1 exist for all 10 (gpt-4o). Run `sahayak rules review <id>` per scheme; see the M1 review notes in the change log. |
 
 **Exit criteria**
 - [x] 10 schemes ingested; chunks searchable by vector and full text. *2026-10-17, local Postgres 16 + pgvector (pgserver) with the real multilingual-e5-large: all 15 sources fetched, 165 chunks across the 10 schemes. Vector search ranks the right scheme first for Hindi, Marathi and English queries; English full-text search works (all M1 sources are English, D-012). Hindi full text is covered by M1-T13.*
-- [ ] Draft rules exist for all 10; re-running ingestion creates no duplicates. *Re-run: verified (+0 new, 165 kept, 0 removed, 0 duplicate content hashes). Draft rules: **blocked on M0-T13** (no LLM key on the dev machine). Run `sahayak ingest` once a key is in `.env`; the drafting path is verified end to end with the fake LLM in M1-T13.*
+- [x] Draft rules exist for all 10; re-running ingestion creates no duplicates. *2026-10-17, gpt-4o via the OpenAI API: one v1 draft per scheme. A re-run made 0 LLM calls (every rule `unchanged`), added 0 chunks and removed 0, with 0 duplicate content hashes. Validation flags issues in 3 drafts (pm-kisan 6, pm-vishwakarma 10, pm-sym 1: occupations outside the enum, and source refs that paraphrase section headings); approval is blocked until they are fixed in M1-T14.*
 
 ---
 
@@ -417,7 +417,6 @@ Claude Code lists here every HUMAN task that is currently blocking progress.
 
 | Task ID | What's needed | Blocking | Date raised |
 |---|---|---|---|
-| M0-T13 | Azure OpenAI (or Anthropic) API key in local `.env` | Drafting real rules for the 10 schemes (M1 exit criterion 2) and therefore M1-T14 | 2026-10-10 |
 | M1-T14 | Review and approve the 10 draft rules (`sahayak rules review <id>`) | M2 evals on approved rules (M2-T07, M2 exit criterion) | 2026-10-17 |
 
 ---
@@ -428,5 +427,5 @@ Claude Code adds one entry per completed milestone (newest first).
 
 | Date | Milestone | Summary | Commit |
 |---|---|---|---|
-| 2026-10-17 | M1 | Data layer and ingestion: ORM models + migration, LLM and embedding providers, prompt loader, manifest of 10 schemes, polite fetcher (with connect retry), HTML/PDF parsers, chunker, idempotent indexer, LLM rule drafting with a minimal rule DSL, `sahayak ingest` / `rules list` / `rules review`, end-to-end test. 280 tests pass (3 Redis tests skip locally). 10 schemes ingested locally; draft rules wait on the LLM key (M0-T13). Decisions D-011 to D-021. Waiting for review. | aa49bf4 (branch `m1-data-ingestion`) |
+| 2026-10-17 | M1 | Data layer and ingestion: ORM models + migration, LLM and embedding providers, prompt loader, manifest of 10 schemes, polite fetcher (with connect retry), HTML/PDF parsers, chunker, idempotent indexer, LLM rule drafting with a minimal rule DSL, `sahayak ingest` / `rules list` / `rules review`, end-to-end test. 280 tests pass (3 Redis tests skip locally). 10 schemes ingested locally and v1 rules drafted for all 10 with gpt-4o (OpenAI API, D-022); re-run is a no-op. Decisions D-011 to D-022. Waiting for review; rule approval is M1-T14. | aa49bf4 (branch `m1-data-ingestion`) |
 | 2026-10-10 | M0 | Project skeleton: layout, CLAUDE.md, uv/ruff/mypy/pytest, pre-commit, settings, logging/tracing/redaction, FastAPI app with health and readiness, Docker + compose, async DB + Alembic baseline (pgvector), test fixtures, CI, justfile. 10 decisions (D-001 to D-010). CI green on PR #1 after two CI fixes (setup-uv pin, Alembic path_separator). Reviewed, merged and marked DONE by Prathmesh. | d5c3a3f (merge) |
