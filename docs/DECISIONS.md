@@ -214,3 +214,19 @@ Record one entry per decision, newest last. Reference them from `IMPLEMENTATION.
   - **Drafts.** A draft is skipped when a rule already exists for the same excerpts (`source_hash`). A new draft archives older unreviewed drafts of the scheme, and the approved rule stays live until a new one is approved. `extraction` records the provider, model, prompt id (`rule_extraction@v1`), self-reported confidence, unmapped criteria, the exact excerpts and any validation `issues`. A rule with issues can't be approved (see D-020).
 - **Alternatives considered:** A recursive schema (works on Azure strict mode only); approximating unmapped criteria with the nearest field (silently wrong rules); one LLM call per section (loses cross-section context, such as eligibility vs. exclusions).
 - **Consequences:** Two levels of nesting cover the M1 schemes (eligibility conditions plus exclusion lists). A deeper rule can still be written by hand in review. The prompt is versioned, so changing it means adding `rule_extraction.v2.md`. Re-drafting unchanged text needs `sahayak ingest --redraft`.
+
+## D-020 — Ingestion CLI and rule review behaviour
+
+- **Date:** 2026-10-17
+- **Task:** M1-T12
+- **Status:** accepted
+- **Context:** TRD §8 asks for `sahayak ingest [--scheme ID]` and `sahayak rules review <scheme_id>` (approve, edit in `$EDITOR`, reject), with idempotent re-runs.
+- **Decision:**
+  - **Per scheme, two commits.** `ingest_scheme` commits the index first, then drafts the rule and commits again, so an LLM failure never loses indexed chunks. One failing scheme is reported and the batch continues. The exit code is 1 if any scheme fetched nothing or failed its rule draft.
+  - **Rules only from complete text.** If any manifest source of a scheme fails to fetch, no rule is drafted that run (`incomplete sources`). Drafting from part of the text would mislead the reviewer, and a flaky source would otherwise create a new draft version on every run. A garbled source (D-012) counts as fetched and indexes as empty.
+  - **Options.** `--skip-rules` indexes without an LLM (needed until LLM keys are configured), `--reindex` deletes and re-embeds a scheme's chunks (D-018), and `--redraft` drafts even when the text is unchanged. Without `--skip-rules`, missing LLM settings stop the command before anything runs.
+  - **No Redis embedding cache in the CLI.** The indexer only embeds new chunks, so the cache would save almost nothing and would add a Redis dependency to ingestion.
+  - **Review.** `rules review` shows the latest draft beside the exact excerpts the model read, with the readable rule, unmapped criteria, notes, source refs, confidence and validation issues. **Approve** is refused while issues remain. It archives the previously approved version and moves a `provisional` scheme to `active` (TRD §8A). **Edit** opens the rule's `logic`, `source_refs` and `notes` as JSON in `$EDITOR`, validates the shape, re-checks issues, sets `review_edited`, and commits right away so an edit survives quitting. **Reject** records an optional reason in `extraction.rejection_reason`. The reviewer's name comes from `--reviewer` or `SAHAYAK_REVIEWER`. `rules list` shows each scheme's live and pending versions.
+  - **Entry points.** `sahayak` (`[project.scripts]`) and `python -m sahayak.cli`. The second works where Smart App Control blocks the generated `sahayak.exe` shim (D-007).
+- **Alternatives considered:** Drafting from whatever was fetched (see above); a review web UI (later, with the admin API); a single transaction per scheme (an LLM outage would roll back indexing).
+- **Consequences:** Rules exist only for schemes whose sources all fetched in the same run. The review is terminal-only and synchronous, and long source text scrolls in the terminal.

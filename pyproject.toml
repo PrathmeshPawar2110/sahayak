@@ -30,6 +30,9 @@ dependencies = [
     "uvicorn[standard]>=0.54.0",
 ]
 
+[project.scripts]
+sahayak = "sahayak.cli:app"
+
 [dependency-groups]
 dev = [
     "asgi-lifespan>=2.1.0",
