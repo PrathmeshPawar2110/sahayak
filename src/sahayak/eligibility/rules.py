@@ -1,18 +1,21 @@
-"""The eligibility rule DSL (TRD §9.2): a small boolean expression tree stored as JSON.
+"""The eligibility rule DSL (TRD §9.2, §8C): a small boolean expression tree stored as JSON.
 
     {"all": [{"field": "occupation", "op": "in", "value": ["farmer"]},
              {"not": {"any": [{"field": "is_income_tax_payer", "op": "==", "value": true}]}}]}
 
-This is the minimal version M1 needs to store and review extracted drafts. M2-T01 adds the
-documents and application-window parts and the JSON Schema export; M2-T03 evaluates it.
+`parse_logic` checks only the JSON shape (so drafts with mistakes can still be stored and
+reviewed). `rule_issues` / `validate_logic` check meaning against `UserProfile`: known fields,
+operators that suit the field, values of the field's type and range. `validate_rule` does both
+and is what every path that makes a rule live must call (M2-T04).
 """
 
 import json
-from typing import Literal, assert_never
+from datetime import date, datetime
+from typing import Any, Literal, Self, assert_never
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, model_validator
 
-from sahayak.eligibility.fields import PROFILE_FIELDS, ProfileField
+from sahayak.eligibility.fields import PROFILE_FIELDS
 
 Operator = Literal["==", "!=", "<", "<=", ">", ">=", "in", "not_in", "exists"]
 Scalar = bool | int | float | str
@@ -62,6 +65,59 @@ class SourceRef(BaseModel):
     section: str
 
 
+class DocumentRequirement(BaseModel):
+    """A document the applicant must hold, valid on the given date (TRD §8C; used from M10)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    type: str = Field(min_length=1, description="document_types id, e.g. income_certificate")
+    valid_on: Literal["today", "application_deadline"] = "today"
+
+
+class ApplicationWindow(BaseModel):
+    """When applications are accepted (TRD §8C; used from M10). An open end is None."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    opens: date | None = None
+    closes: date | None = None
+
+    @model_validator(mode="after")
+    def _ordered(self) -> Self:
+        if self.opens and self.closes and self.closes < self.opens:
+            raise ValueError("closes is before opens")
+        return self
+
+
+class SchemeRule(BaseModel):
+    """One versioned eligibility rule of a scheme, as stored and exported (TRD §9.2)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    scheme_id: str = Field(min_length=1)
+    version: int = Field(ge=1)
+    status: Literal["draft", "approved", "rejected", "archived"]
+    logic: RuleNode
+    source_refs: list[SourceRef] = Field(default_factory=list)
+    notes: str | None = None
+    required_documents: list[DocumentRequirement] | None = None
+    application_window: ApplicationWindow | None = None
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
+
+    def to_json(self) -> dict[str, Any]:
+        dumped: dict[str, Any] = self.model_dump(mode="json", exclude_none=True)
+        return dumped
+
+
+class RuleValidationError(ValueError):
+    """A rule that must not be saved as live: bad JSON shape or invalid content."""
+
+    def __init__(self, issues: list[str]) -> None:
+        super().__init__("; ".join(issues))
+        self.issues = issues
+
+
 def parse_logic(data: object) -> RuleNode:
     """Validate the JSON shape of a rule tree. Field names and value types are not checked."""
     return _LOGIC.validate_python(data)
@@ -72,6 +128,12 @@ def dump_logic(node: RuleNode) -> dict[str, object]:
     return dumped
 
 
+def rule_json_schema() -> dict[str, Any]:
+    """JSON Schema of an exported rule document, for editors and external tools."""
+    schema = SchemeRule.model_json_schema(by_alias=True)
+    return {"$schema": "https://json-schema.org/draft/2020-12/schema", **schema}
+
+
 def validate_logic(node: RuleNode) -> list[str]:
     """Problems that stop a rule from being approved: unknown fields, wrong value types..."""
     issues: list[str] = []
@@ -79,12 +141,38 @@ def validate_logic(node: RuleNode) -> list[str]:
     return issues
 
 
+def rule_issues(rule: SchemeRule) -> list[str]:
+    """Every problem with a parsed rule: its logic and its document requirements."""
+    issues = validate_logic(rule.logic)
+    types = [doc.type for doc in rule.required_documents or []]
+    issues.extend(
+        f"document {doc_type!r} is required twice"
+        for doc_type in sorted(set(types))
+        if types.count(doc_type) > 1
+    )
+    return issues
+
+
+def validate_rule(data: object) -> SchemeRule:
+    """Parse and fully check a rule document. Raises RuleValidationError listing every issue."""
+    try:
+        rule = SchemeRule.model_validate(data)
+    except ValidationError as exc:
+        raise RuleValidationError(
+            [f"{'.'.join(map(str, e['loc'])) or 'rule'}: {e['msg']}" for e in exc.errors()]
+        ) from exc
+    issues = rule_issues(rule)
+    if issues:
+        raise RuleValidationError(issues)
+    return rule
+
+
 def describe(node: RuleNode, indent: int = 0) -> str:
     """Readable multi-line rendering for reviewers."""
     pad = "  " * indent
     match node:
         case Condition():
-            return pad + _condition_text(node)
+            return pad + condition_text(node)
         case AllOf(items=items):
             return "\n".join([f"{pad}ALL of:", *(describe(item, indent + 1) for item in items)])
         case AnyOf(items=items):
@@ -95,10 +183,16 @@ def describe(node: RuleNode, indent: int = 0) -> str:
             assert_never(node)
 
 
+def condition_text(condition: Condition) -> str:
+    if condition.op == "exists":
+        return f"{condition.field} exists"
+    return f"{condition.field} {condition.op} {json.dumps(condition.value, ensure_ascii=False)}"
+
+
 def _check(node: RuleNode, issues: list[str]) -> None:
     match node:
         case Condition():
-            issues.extend(f"{_condition_text(node)}: {p}" for p in _condition_problems(node))
+            issues.extend(f"{condition_text(node)}: {p}" for p in _condition_problems(node))
         case AllOf(items=items) | AnyOf(items=items):
             if not items:
                 issues.append(f"empty '{'all' if isinstance(node, AllOf) else 'any'}' group")
@@ -120,31 +214,10 @@ def _condition_problems(condition: Condition) -> list[str]:
     if condition.op in ("in", "not_in"):
         if not isinstance(value, list) or not value:
             return [f"'{condition.op}' needs a non-empty list"]
-        return [problem for item in value if (problem := _value_problem(spec, item))]
+        return [problem for item in value if (problem := spec.value_problem(item))]
     if value is None or isinstance(value, list):
         return [f"'{condition.op}' needs a single value"]
     if condition.op in _COMPARISONS and spec.kind not in ("int", "float"):
         return [f"'{condition.op}' needs a numeric field, {spec.name} is {spec.kind}"]
-    problem = _value_problem(spec, value)
+    problem = spec.value_problem(value)
     return [problem] if problem else []
-
-
-def _value_problem(spec: ProfileField, value: Scalar) -> str | None:
-    if spec.kind == "enum":
-        if isinstance(value, str) and value in spec.choices:
-            return None
-        return f"{value!r} is not one of: {', '.join(spec.choices)}"
-    is_number = isinstance(value, int | float) and not isinstance(value, bool)
-    ok = {
-        "bool": isinstance(value, bool),
-        "int": is_number and isinstance(value, int),
-        "float": is_number,
-        "str": isinstance(value, str),
-    }[spec.kind]
-    return None if ok else f"{value!r} is not a valid {spec.kind} for {spec.name}"
-
-
-def _condition_text(condition: Condition) -> str:
-    if condition.op == "exists":
-        return f"{condition.field} exists"
-    return f"{condition.field} {condition.op} {json.dumps(condition.value, ensure_ascii=False)}"
