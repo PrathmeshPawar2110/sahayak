@@ -139,8 +139,8 @@
 |---|---|---|---|---|---|
 | M3-T01 | Vector search over `scheme_chunks` (pgvector, cosine), filtered by scheme status and state. | CC | M1 | `DONE` | `vector_search`: cosine over HNSW, active/provisional schemes that are central or in the user's state; exact filter-first search when restricted to scheme ids; 11 Postgres tests. 8134c4b |
 | M3-T02 | Full-text search (Postgres `tsvector`, `simple` config for hi/mr + `english` for en). | CC | M1 | `DONE` | `fulltext_search`: query terms OR-ed (not AND-ed), `english` for en chunks and `simple` for hi/mr, length-normalised `ts_rank`, same filter; both branches use the GIN index; 11 Postgres tests. 795affd |
-| M3-T03 | Reciprocal Rank Fusion of both result lists; top-k=5; dedupe by chunk. | CC | M3-T01, M3-T02 | `IN_PROGRESS` | |
-| M3-T04 | Language-aware querying: query in the user's language and, if useful, an English translation; merge results. | CC | M3-T03 | `TODO` | |
+| M3-T03 | Reciprocal Rank Fusion of both result lists; top-k=5; dedupe by chunk. | CC | M3-T01, M3-T02 | `DONE` | `reciprocal_rank_fusion` (k=60, best rank per list, deterministic ties) and `HybridRetriever` (20 candidates per search, top 5, counts-only logging); 11 unit + 4 Postgres tests (see D-029). 7eb0e01 |
+| M3-T04 | Language-aware querying: query in the user's language and, if useful, an English translation; merge results. | CC | M3-T03 | `IN_PROGRESS` | |
 | M3-T05 | Retrieval test set (~30 queries in hi/mr/en with expected scheme/chunk) + recall@5 metric in the eval runner. | CC | M3-T03 | `TODO` | |
 
 **Exit criteria**

@@ -327,3 +327,28 @@ Record one entry per decision, newest last. Reference them from `IMPLEMENTATION.
     - Majhi Ladki Bahin: any marital status qualifies, because "one unmarried woman in the family" is eligible. State means residence (`state`), not `domicile_state`.
 - **Alternatives considered:** Labelling from the approved rules (circular); random profiles only (few boundary cases among 30).
 - **Consequences:** A preview against the 10 M1 drafts (`sahayak eval --rules latest --no-record`) gives 97.7% (293/300). All 7 mismatches are mistakes in the drafts that review should fix: the PM-KISAN non-creamy-layer exclusion, the PM Vishwakarma trade names and BPL condition, SSY age ≤ 10, Ladki Bahin excluding unmarried women, and PMAY-G's caste and BPL alternatives. Because most labels are NOT_ELIGIBLE, overall accuracy flatters. The per-scheme ELIGIBLE recall in the report is the more telling number. M12 grows the set to 200 profiles.
+
+## D-029 — Hybrid retrieval: filters, full-text matching and fusion
+
+- **Date:** 2026-10-18
+- **Task:** M3-T01, M3-T02, M3-T03
+- **Status:** accepted
+- **Context:** TRD §7 and §10 ask for pgvector plus Postgres full-text search fused with RRF, top-k 5, filtered by scheme status and state. They don't say what "filtered by state" means when the state is unknown, how a natural-language question becomes a tsquery, or how filtering interacts with the HNSW index.
+- **Decision:**
+  - **Filter.** By default only `active` and `provisional` schemes are searched (TRD §8A: discontinued schemes only when asked by name, M9; archived never). With a user state, central schemes plus that state's schemes match. With no state yet, every state matches: retrieval only finds text, and the rule engine decides eligibility. `scheme_ids` restricts a search to named schemes (evidence for eligible or selected schemes, M4). `ends_at` isn't checked here: M9 moves a scheme past its end date to `discontinued`.
+  - **Vector search** orders by cosine distance and uses the HNSW index. pgvector returns at most `hnsw.ef_search` (40) neighbours before filtering, so a selective filter can return fewer hits. That's harmless for the default filter at the MVP's size, but not for `scheme_ids`, so a scheme-restricted search is exact: a `MATERIALIZED` CTE filters and computes distances first, then sorts.
+  - **Full-text search** ORs the query's terms: `plainto_tsquery` normalises them, and its ` & ` operators are replaced with ` | ` (lexemes are quoted, so their contents can't change). An AND of every word in a question ("which farmer families are covered?") almost never matches. English chunks match the query normalised with `english`, Hindi and Marathi chunks with `simple`, as the generated `tsv` column indexes them. Ranking is `ts_rank` with normalisation 1 (divided by 1 + log length). Both branches use the GIN index (a BitmapOr).
+  - **Fusion.** Each search contributes its top 20 (`CANDIDATES`); RRF with k = 60 fuses them, a chunk counts once per list at its best rank, ties go to the better best rank and then the chunk id, and the top 5 are returned with each list's rank for debugging.
+  - **Logging.** Query text can carry personal details, so the retriever logs and traces only counts, scheme ids and latency.
+- **Alternatives considered:** `websearch_to_tsquery` (AND semantics, same problem); weighting vector scores against `ts_rank` (the scales aren't comparable, which is why RRF is used); pgvector iterative index scans (`hnsw.iterative_scan` needs pgvector 0.8, and the local pgserver has 0.6.2); excluding schemes outside a known state from vector search only (the two lists would disagree).
+- **Consequences:** Hindi and Marathi chunks match only exact word forms in full text (no stemmer); the vector search covers inflections. If the corpus grows far beyond the MVP, unrestricted filtered searches may need `hnsw.ef_search` raised or iterative scans.
+
+## D-030 — Hindi and Marathi queries are also searched in English
+
+- **Date:** 2026-10-18
+- **Task:** M3-T04
+- **Status:** accepted
+- **Context:** Every M1 chunk is English (D-012). multilingual-e5 maps hi/mr/en into one space, but full-text search can only match shared words (in practice numbers), so it contributes almost nothing to a Hindi or Marathi query.
+- **Decision:** `HybridRetriever` takes an optional `QueryTranslator` and the user's language. A query is translated when the language is `hi` or `mr` (including romanised Hinglish) or when it contains Devanagari. `LLMQueryTranslator` uses the configured LLM with the versioned prompt `query_translation@v1` (structured output, user text wrapped as data). Both queries are embedded in one call, each gets a vector and a full-text list, and all four lists go into one RRF, so a chunk found in both languages ranks higher. A failed translation (any `LLMError`) is logged by error type and the original query is still searched; a translation equal to the query is dropped. English queries are never translated.
+- **Alternatives considered:** Translating chunks into hi/mr at ingestion (TRD §8 step 4, optional; it multiplies the index and still misses romanised queries); a separate translation API (another provider for one feature; the LLM is already configured); translating only for full-text search (the English vector query also helps, see the eval in D-031).
+- **Consequences:** A Hindi or Marathi turn costs one short LLM call (about a second with gpt-4o). Translations aren't cached yet; the query embeddings are (Redis, D-015). The agent (M4) can pass its own translation if it already has one.

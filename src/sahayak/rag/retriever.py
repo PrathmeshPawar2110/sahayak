@@ -3,6 +3,9 @@
 RRF scores a chunk by its rank in each list, `sum(1 / (k + rank))`, so the two searches' scores,
 which aren't comparable, never need calibrating against each other. A chunk found by both
 searches beats one found by either alone at a similar rank.
+
+Queries are language-aware: a Hindi or Marathi query is searched as written and, with a
+translator, in English too, and all four lists are fused together.
 """
 
 import time
@@ -16,8 +19,10 @@ from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sahayak.db.models import Language
+from sahayak.llm.base import LLMError
 from sahayak.rag.embeddings import EmbeddingProvider
 from sahayak.rag.search import NO_FILTER, SearchFilter, SearchHit, fulltext_search, vector_search
+from sahayak.rag.translation import QueryTranslator, needs_translation
 
 log = structlog.get_logger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -97,10 +102,12 @@ class HybridRetriever:
         top_k: int = TOP_K,
         candidates: int = CANDIDATES,
         rrf_k: int = RRF_K,
+        translator: QueryTranslator | None = None,
     ) -> None:
         if top_k <= 0 or candidates < top_k:
             raise ValueError("need 0 < top_k <= candidates")
         self._embedder = embedder
+        self._translator = translator
         self.top_k = top_k
         self.candidates = candidates
         self.rrf_k = rrf_k
@@ -110,12 +117,19 @@ class HybridRetriever:
         session: AsyncSession,
         query: str,
         *,
+        language: Language | None = None,
         search_filter: SearchFilter = NO_FILTER,
         top_k: int | None = None,
     ) -> Retrieval:
-        queries = [query] if query.strip() else []
+        """Search for `query`, in the user's `language`.
+
+        With a translator, a Hindi or Marathi query is also searched in English and every list
+        goes into the same fusion, so a chunk found in both languages ranks higher. If the
+        translation fails, the original query is still searched.
+        """
         with tracer.start_as_current_span("rag.retrieve") as span:
             started = time.perf_counter()
+            queries = await self._queries(query, language)
             ranked = await self._search(session, queries, search_filter)
             chunks = reciprocal_rank_fusion(ranked, k=self.rrf_k, limit=top_k or self.top_k)
             latency_ms = round((time.perf_counter() - started) * 1000)
@@ -131,6 +145,19 @@ class HybridRetriever:
                 latency_ms=latency_ms,
             )
         return Retrieval(chunks=chunks, queries=queries)
+
+    async def _queries(self, query: str, language: Language | None) -> list[str]:
+        query = " ".join(query.split())
+        if not query:
+            return []
+        if self._translator is None or not needs_translation(query, language):
+            return [query]
+        try:
+            english = await self._translator.to_english(query, language)
+        except LLMError as exc:
+            log.warning("query_translation_failed", error=type(exc).__name__)
+            return [query]
+        return [query] if english is None else [query, english]
 
     async def _search(
         self, session: AsyncSession, queries: Sequence[str], search_filter: SearchFilter
