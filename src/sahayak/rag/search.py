@@ -12,7 +12,8 @@ from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import ColumnElement, Select, select
+from sqlalchemy import ColumnElement, Select, Text, case, cast, func, literal, select
+from sqlalchemy.dialects.postgresql import REGCONFIG, TSQUERY
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sahayak.db.models import Language, Scheme, SchemeChunk, SchemeLevel, SchemeStatus
@@ -20,6 +21,10 @@ from sahayak.db.models import Language, Scheme, SchemeChunk, SchemeLevel, Scheme
 # Statuses a scheme may have for its text to be retrieved. Discontinued schemes are found only
 # when asked about by name (M9), and archived ones never.
 RETRIEVABLE_STATUSES = frozenset({SchemeStatus.ACTIVE, SchemeStatus.PROVISIONAL})
+
+# `ts_rank` normalisation 1: divide by 1 + log(chunk length), so long chunks don't win on
+# repetition alone.
+RANK_NORMALIZATION = 1
 
 
 @dataclass(frozen=True)
@@ -142,4 +147,47 @@ async def _exact_vector_search(
         .limit(limit)
     )
     rows = await session.execute(statement)
+    return [_hit(row[0], row[1], float(row[2])) for row in rows]
+
+
+def any_term_query(config: str, query: str) -> ColumnElement[str]:
+    """A tsquery matching chunks that contain *any* of the query's terms.
+
+    `plainto_tsquery` normalises the words with `config` (stemming, stop words) but joins them
+    with AND, which a natural-language question rarely satisfies in full; the terms are joined
+    with OR instead, and ranking rewards chunks that match more of them. Lexemes are quoted in
+    the tsquery text, so replacing the ` & ` operators can't touch their contents.
+    """
+    terms = func.plainto_tsquery(cast(literal(config), REGCONFIG), query)
+    return cast(func.replace(cast(terms, Text), " & ", " | "), TSQUERY)
+
+
+async def fulltext_search(
+    session: AsyncSession,
+    query: str,
+    *,
+    search_filter: SearchFilter = NO_FILTER,
+    limit: int = 20,
+) -> list[SearchHit]:
+    """Chunks matching the query's words, ranked by `ts_rank` (normalised by chunk length).
+
+    English chunks are indexed with the `english` configuration and matched against the query
+    normalised the same way; Hindi and Marathi chunks use `simple` (Postgres has no stemmer for
+    either), so they match exact word forms. A query with only stop words matches nothing.
+    """
+    if limit <= 0 or not query.strip():
+        return []
+    english, simple = any_term_query("english", query), any_term_query("simple", query)
+    is_english = SchemeChunk.language == Language.EN
+    tsv = SchemeChunk.tsv
+    matches = (is_english & tsv.op("@@")(english)) | (~is_english & tsv.op("@@")(simple))
+    rank: ColumnElement[float] = case(
+        (is_english, func.ts_rank(tsv, english, RANK_NORMALIZATION)),
+        else_=func.ts_rank(tsv, simple, RANK_NORMALIZATION),
+    )
+    statement: _HitSelect = _filtered(
+        select(SchemeChunk, Scheme.last_verified_at, rank.label("score")).where(matches),
+        search_filter,
+    )
+    rows = await session.execute(statement.order_by(rank.desc(), SchemeChunk.id).limit(limit))
     return [_hit(row[0], row[1], float(row[2])) for row in rows]

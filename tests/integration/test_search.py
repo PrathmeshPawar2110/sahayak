@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from sahayak.db.models import SchemeStatus
 from sahayak.rag.embeddings.fake import FakeEmbeddingProvider
-from sahayak.rag.search import SearchFilter, vector_search
+from sahayak.rag.search import SearchFilter, fulltext_search, vector_search
 from tests.integration.rag_corpus import VERIFIED_AT, chunk_id, load_corpus
 
 pytestmark = pytest.mark.usefixtures("corpus")
@@ -131,3 +131,77 @@ async def test_vector_search_with_no_limit_returns_nothing(
     db_session: AsyncSession, embedder: FakeEmbeddingProvider
 ) -> None:
     assert await vector_search(db_session, await query_vector(embedder, "x"), limit=0) == []
+
+
+async def test_fulltext_search_stems_english_and_ranks_more_matched_terms_first(
+    db_session: AsyncSession,
+) -> None:
+    hits = await fulltext_search(db_session, "Which farmer families are covered?")
+
+    # "farmer" also matches "Farmers" (stemmed); the chunk with both terms ranks first.
+    assert (hits[0].scheme_id, hits[0].section) == ("farmer-support", "Eligibility")
+    assert {(h.scheme_id, h.section) for h in hits[1:]} == {
+        ("farmer-support", "Benefits"),
+        ("ka-housing", "Benefits"),  # "families"
+    }
+    assert hits[0].score > max(h.score for h in hits[1:]) > 0
+
+
+async def test_fulltext_search_matches_any_term(db_session: AsyncSession) -> None:
+    hits = await fulltext_search(db_session, "pension or housing")
+
+    assert {h.scheme_id for h in hits} == {"worker-pension", "ka-housing"}
+
+
+async def test_fulltext_search_matches_hindi_and_marathi_word_forms(
+    db_session: AsyncSession,
+) -> None:
+    hindi = await fulltext_search(db_session, "किसान परिवार")
+    marathi = await fulltext_search(db_session, "महिलांना किती पैसे मिळतात")
+
+    assert [(h.scheme_id, h.language.value) for h in hindi] == [("farmer-support", "hi")]
+    assert [(h.scheme_id, h.language.value) for h in marathi] == [("mh-women", "mr")]
+
+
+async def test_fulltext_search_matches_numbers_across_languages(db_session: AsyncSession) -> None:
+    hits = await fulltext_search(db_session, "हर साल 6000 रुपये")
+
+    # The Hindi chunk shares the words, the English one the amount, the Marathi one "रुपये".
+    assert hits[0].language.value == "hi"
+    assert {(h.scheme_id, h.language.value) for h in hits} == {
+        ("farmer-support", "hi"),
+        ("farmer-support", "en"),
+        ("mh-women", "mr"),
+    }
+
+
+async def test_fulltext_search_applies_the_filter(db_session: AsyncSession) -> None:
+    default = await fulltext_search(db_session, "farmers loan waiver press notice")
+    in_karnataka = await fulltext_search(
+        db_session, "women rupees", search_filter=SearchFilter.for_user("KA")
+    )
+
+    assert {h.scheme_id for h in default} == {"farmer-support"}
+    assert {h.scheme_id for h in in_karnataka} == {"farmer-support"}
+
+
+@pytest.mark.parametrize("query", ["", "   ", "the of and", "को"])
+async def test_fulltext_search_without_searchable_terms_finds_nothing(
+    db_session: AsyncSession, query: str
+) -> None:
+    # "को" is a word to `simple`, but no chunk text besides the Hindi one has it.
+    hits = await fulltext_search(db_session, query)
+
+    assert all(h.language.value == "hi" for h in hits)
+    if query != "को":
+        assert hits == []
+
+
+async def test_fulltext_search_treats_query_syntax_as_text(db_session: AsyncSession) -> None:
+    hits = await fulltext_search(db_session, "farmer's & 'pension' | !(housing) <-> :*")
+
+    assert {h.scheme_id for h in hits} == {"farmer-support", "worker-pension", "ka-housing"}
+
+
+async def test_fulltext_search_with_no_limit_returns_nothing(db_session: AsyncSession) -> None:
+    assert await fulltext_search(db_session, "farmers", limit=0) == []
