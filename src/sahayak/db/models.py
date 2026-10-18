@@ -24,15 +24,18 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    event,
     func,
 )
 from sqlalchemy import (
     text as sql_text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSVECTOR
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.engine import Connection
+from sqlalchemy.orm import Mapped, Mapper, mapped_column, relationship
 
 from sahayak.db.base import Base
+from sahayak.eligibility.rules import validate_rule
 
 # Dimension shared by multilingual-e5-large and text-embedding-3-large (requested at 1024).
 EMBEDDING_DIM = 1024
@@ -221,6 +224,30 @@ class EligibilityRule(Base):
             postgresql_where=sql_text("status = 'approved'"),
         ),
     )
+
+    def document(self) -> dict[str, Any]:
+        """The rule as a DSL document (`sahayak.eligibility.rules.SchemeRule` input)."""
+        return {
+            "scheme_id": self.scheme_id,
+            "version": self.version,
+            "status": RuleStatus(self.status).value,
+            "logic": self.logic,
+            "source_refs": self.source_refs or [],
+            "notes": self.notes,
+            "required_documents": self.required_documents,
+            "application_window": self.application_window,
+            "reviewed_by": self.reviewed_by,
+            "reviewed_at": self.reviewed_at,
+        }
+
+
+@event.listens_for(EligibilityRule, "before_insert")
+@event.listens_for(EligibilityRule, "before_update")
+def _check_live_rule(_mapper: Mapper[Any], _connection: Connection, rule: EligibilityRule) -> None:
+    """No code path may save an invalid approved rule (M2-T04). Drafts may hold issues: they
+    are the reviewer's input, and approval is blocked until they are fixed (D-019)."""
+    if rule.status == RuleStatus.APPROVED:
+        validate_rule(rule.document())
 
 
 class Session(Base):

@@ -250,3 +250,80 @@ Record one entry per decision, newest last. Reference them from `IMPLEMENTATION.
 - **Decision:** `LLM_PROVIDER=openai` with `OPENAI_API_KEY` and `OPENAI_MODEL` (default `gpt-4o`, which supports strict structured outputs). Azure OpenAI and OpenAI share the chat-completions code in `llm/openai_chat.py`; `AzureOpenAIProvider` and `OpenAIProvider` only build their SDK client. Error messages now name the provider (`openai HTTP 403`, `azure_openai HTTP 403`). Azure OpenAI stays the TRD default, so nothing else changes.
 - **Alternatives considered:** Replacing Azure entirely (the TRD's production plan uses Azure); pointing the Azure client at OpenAI's endpoint (the URL and auth schemes differ).
 - **Consequences:** The provider contract tests run against all three providers. Embeddings are unaffected (local e5 by default).
+
+## D-023 — `UserProfile` is the single source of truth for rule fields
+
+- **Date:** 2026-10-17
+- **Task:** M2-T02
+- **Status:** accepted
+- **Context:** M1 kept a hand-written catalogue of the 26 eligibility fields (D-019). M2-T02 adds the TRD §9.1 `UserProfile`, and two copies of field types and choices would drift apart.
+- **Decision:** `sahayak.eligibility.profile.UserProfile` follows TRD §9.1 field for field, with `FieldSource` from §8C. Only `language` is required. `None` always means "not known yet". Constraints the TRD implies are validated: ages 0–130, non-negative income, land and child counts, percentages 0–100. State codes are trimmed, upper-cased and must be two letters (ISO 3166-2:IN, e.g. `MH`). Unknown keys are rejected, assignments are validated, and `field_sources` keys must be profile fields. Sensitive fields (TRD §8B) carry `json_schema_extra={"sensitive": true}`. `eligibility.fields.PROFILE_FIELDS` is now derived from the model (kind, choices, description, sensitivity and a validator for each field's range or pattern). The static `ProfileFieldName` literal stays, for the LLM schema, and a test keeps it equal to the model.
+- **Alternatives considered:** Keeping the catalogue separate (two sources of truth); a `"prefer_not_to_say"` value on every sensitive field (the TRD allows it only for `religion`; a declined field stays `None` and the planner is told not to ask again, see D-027).
+- **Consequences:** Adding a profile field is a one-place change plus the literal. Rule values are checked against the same constraints as profile values, so a rule such as `state == "mh"` or `age < 200` is flagged.
+
+## D-024 — Three-valued evaluation: `exists`, short-circuiting and what a result reports
+
+- **Date:** 2026-10-17
+- **Task:** M2-T03
+- **Status:** accepted
+- **Context:** TRD §9.2 asks for `NEEDS_INFO` when a field the result depends on is unknown, but leaves open what `exists` means for an unknown field, which conditions a result reports, and which missing fields count.
+- **Decision:**
+  - **Kleene logic.** `all` is FALSE if any item is FALSE, else UNKNOWN if any is UNKNOWN. `any` is the dual. `not` keeps UNKNOWN.
+  - **`exists`** is TRUE when the field has a value and UNKNOWN when it is `None`, never FALSE. `None` means "not asked yet", so `exists` makes the planner ask for the field instead of silently ruling the scheme out (FR-27).
+  - **Short-circuit.** A definite result reports only the conditions that decided it: a FALSE `all` lists its failed items and no missing fields, so a scheme that is already ruled out never drives a question. An ELIGIBLE result never lists a failed condition, and a NOT_ELIGIBLE one never lists a passed condition. A NEEDS_INFO result lists what is known so far and the unknown fields inside the undecided parts of the rule.
+  - **Negation.** Each reported condition is a `ConditionCheck` with `negated` (under an odd number of `not`s) and `met`, so `not any(is_govt_employee == true)` reports "NOT (is_govt_employee == true)" as passed for a non-employee.
+  - **Types.** `True` never equals `1`. Numbers compare as numbers. A type mismatch raises `ValueError`, which can't happen with validated rules.
+- **Alternatives considered:** `exists` as FALSE for `None` (rules out schemes before asking); reporting every leaf (an ELIGIBLE result would list failed alternatives of an `any`).
+- **Consequences:** Kleene logic is sound but not complete: `any(age > 5, age <= 5)` stays NEEDS_INFO until age is known. Rules don't contain tautologies, so this costs at most an extra question. Property tests check soundness (a definite verdict never changes when more fields are filled in), agreement with two-valued logic on complete profiles, and that answering a field never adds missing fields.
+
+## D-025 — Rule validation on save: drafts may hold issues, approved rules may not
+
+- **Date:** 2026-10-17
+- **Task:** M2-T04
+- **Status:** accepted
+- **Context:** M2-T04 asks that unknown fields and operators are rejected and value types checked against `UserProfile` when a rule is saved. LLM drafts often contain such mistakes (3 of the 10 M1 drafts do), and D-019 keeps them so the reviewer can see and fix them.
+- **Decision:** Validation happens at three points.
+  - **Shape** (`parse_logic`): an unknown operator or combinator, or a malformed tree, is rejected before anything is stored, for drafts too (extraction and `rules review` edits already call it).
+  - **Meaning** (`validate_rule` / `rule_issues`): unknown fields, operators that don't suit the field, values outside the field's type, choices, range or pattern, empty groups, and duplicate document requirements. Drafts store these as `issues`, and approval is refused while any remain (D-020).
+  - **ORM guard:** a SQLAlchemy `before_insert` / `before_update` hook on `EligibilityRule` runs `validate_rule` whenever the row's status is `approved`. No code path, including future admin endpoints, can save an invalid live rule. Rules loaded for evaluation are validated again.
+- **Alternatives considered:** Rejecting invalid drafts at extraction (the reviewer would lose the draft and its excerpts); validating only in `approve_rule` (other write paths would bypass it).
+- **Consequences:** `sahayak.db.models` imports `sahayak.eligibility.rules`, which is pure Pydantic. A failed check raises `RuleValidationError` at flush time, listing every issue.
+
+## D-026 — Approved rules are exported to `data/rules/` for CI
+
+- **Date:** 2026-10-17
+- **Task:** M2-T04, M2-T09
+- **Status:** accepted
+- **Context:** The M2 exit criterion runs the eligibility eval in CI on approved rules. Approved rules live in Postgres and come from LLM ingestion plus human review, so CI can't rebuild them.
+- **Decision:** `sahayak rules export` writes every approved rule to `data/rules/<scheme_id>.json`, with `schema.json` (the rule JSON Schema). It removes files of schemes that no longer have an approved rule. The files are committed. The eval reads them by default (`--rules files`). `--rules db` reads approved rules from the database, and `--rules latest` previews the newest drafts for reviewers. Loading validates every file, accepts only `approved` rules, and checks that file names match `scheme_id`. A unit test fails if `schema.json` is out of date.
+- **Alternatives considered:** Seeding the CI database from a dump (binary, and harder to review); evaluating in CI only what the LLM drafts (not reproducible, and it would call a paid API).
+- **Consequences:** After approving rules, run `sahayak rules export` and commit the snapshot. The diff shows every rule change in review. The database stays the source of truth: the agent (M4) loads rules from it, not from the files.
+
+## D-027 — Question planner: tie-breaks, declined fields and output
+
+- **Date:** 2026-10-17
+- **Task:** M2-T05
+- **Status:** accepted
+- **Context:** TRD §10 `plan_question` picks the missing field that appears in the most NEEDS_INFO rules. It doesn't say how to break ties, what to do when a user declines a sensitive question (TRD §8B), or what the planner returns.
+- **Decision:** `next_question(results, profile, questions_asked=, max_questions=8, declined=())` returns a `PlannedQuestion` (field, the NEEDS_INFO scheme ids it feeds, whether it's sensitive) or `None`. It returns `None` when `questions_asked` has reached the limit, or when no NEEDS_INFO scheme has an askable field. Each scheme counts once per field. Ties go to non-sensitive fields, then to `UserProfile` field order, so the choice is deterministic. Known fields (re-checked against the profile) and `declined` fields are never asked. Turning the field into a question in the user's language is the agent's job (M4).
+- **Alternatives considered:** Never asking sensitive fields while any other field is missing (would hide a scholarship that only needs the category until every unrelated question is answered); weighting by scheme benefit (no benefit data yet).
+- **Consequences:** The agent must track declined fields per session. A sensitive field is asked first only when strictly more schemes need it than any other field.
+
+## D-028 — Eligibility eval set v0: independent reference labels and their judgement calls
+
+- **Date:** 2026-10-17
+- **Task:** M2-T07
+- **Status:** accepted (labels pending the human check in M2-T08)
+- **Context:** TRD §12.1 asks for programmatically generated profiles with hand-checked labels. If the labels came from the rules under test, the eval would always pass. Many official criteria can't be expressed with `UserProfile` fields.
+- **Decision:**
+  - **Independent reference.** `sahayak.evals.reference` writes each scheme's criteria again in plain Python (its own three-valued logic, not the engine or the DSL), from the official source text in the manifest. It labels 30 hand-designed personas: typical citizens, boundary variants (ages 9/10, 17/18, 40/41, 21, 65/66, 70; incomes exactly at and Rs 1 over Rs 1,80,000 and Rs 2,50,000) and four profiles with missing fields. Every scheme gets ELIGIBLE, NOT_ELIGIBLE and NEEDS_INFO labels. Each label carries a one-line reason. `label_status` is `generated` until a human checks it and sets `checked`. The generator refuses to overwrite checked labels, and a test keeps unchecked labels equal to the generator.
+  - **Unexpressible criteria.** A further restriction that the application process checks (no LPG connection in the household, a kutcha house, a bank account, no EPF/ESIC/NPS cover, one beneficiary per family) is assumed to be met. An alternative route that can't be expressed (PM-JAY's SECC 2011 lists) doesn't count, so only the expressible route can make the scheme ELIGIBLE.
+  - **Judgement calls for the M2-T08 check:**
+    - PM-SYM and PMAY-G "monthly income ≤ Rs 15,000" is approximated as annual family income ≤ Rs 1,80,000. PM-SYM's unorganised workers are farmer, agri_labourer, daily_wage, street_vendor, artisan and self_employed (not student, salaried, homemaker, unemployed or other).
+    - PM-KISAN needs land > 0 and no government employee or income-tax payer, whatever the person's own occupation. Government employees are also excluded from PM-SYM (NPS cover).
+    - AB PM-JAY: age ≥ 70 outside DL, WB and OD (the September 2024 source; Delhi and Odisha may have joined since). Under 70 is NOT_ELIGIBLE, because the SECC route can't be expressed.
+    - PMAY-G doesn't use "irrigated land > 2.5 acres", because the profile can't tell irrigated land from other land.
+    - SSY: under 10 in completed years, so a girl who has turned 10 is NOT_ELIGIBLE.
+    - Majhi Ladki Bahin: any marital status qualifies, because "one unmarried woman in the family" is eligible. State means residence (`state`), not `domicile_state`.
+- **Alternatives considered:** Labelling from the approved rules (circular); random profiles only (few boundary cases among 30).
+- **Consequences:** A preview against the 10 M1 drafts (`sahayak eval --rules latest --no-record`) gives 97.7% (293/300). All 7 mismatches are mistakes in the drafts that review should fix: the PM-KISAN non-creamy-layer exclusion, the PM Vishwakarma trade names and BPL condition, SSY age ≤ 10, Ladki Bahin excluding unmarried women, and PMAY-G's caste and BPL alternatives. Because most labels are NOT_ELIGIBLE, overall accuracy flatters. The per-scheme ELIGIBLE recall in the report is the more telling number. M12 grows the set to 200 profiles.

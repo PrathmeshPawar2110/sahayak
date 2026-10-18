@@ -40,7 +40,7 @@
 |---|---|---|---|---|---|
 | M0 | Project skeleton | §14, §13, §17 | `DONE` | 2026-10-10 | 2026-10-10 |
 | M1 | Data layer and ingestion | §8, §9 | `NEEDS_REVIEW` | 2026-10-10 | |
-| M2 | Rule engine and question planner | §9.2, §10 | `TODO` | | |
+| M2 | Rule engine and question planner | §9.2, §10 | `NEEDS_REVIEW` | 2026-10-17 | |
 | M3 | RAG retriever | §7, §8 | `TODO` | | |
 | M4 | LangGraph agent (text only) | §10, §11 | `TODO` | | |
 | M5 | Voice pipeline | §7, FR-1–3, FR-10 | `TODO` | | |
@@ -111,23 +111,23 @@
 
 ## M2 — Rule engine and question planner
 
-**Status:** `TODO`
+**Status:** `NEEDS_REVIEW`
 
 | ID | Task | Owner | Depends | Status | Notes |
 |---|---|---|---|---|---|
-| M2-T01 | Pydantic models for the rule DSL: conditions (`==, !=, <, <=, >, >=, in, not_in, exists`), combinators (`all, any, not`), `source_refs`. Leave optional `required_documents` and `application_window` fields (used in M10). JSON Schema export. | CC | M0 | `TODO` | |
-| M2-T02 | `UserProfile` model (TRD §9.1, including the sensitive and document-related fields) and `FieldSource`. | CC | M0 | `TODO` | |
-| M2-T03 | Three-valued evaluator: returns `ELIGIBLE / NOT_ELIGIBLE / NEEDS_INFO`, the passed and failed conditions, and the missing fields. Correct short-circuit logic for `all`/`any`/`not` with unknowns. | CC | M2-T01, M2-T02 | `TODO` | |
-| M2-T04 | Rule validation on save: unknown fields/operators rejected, value types checked against `UserProfile`. | CC | M2-T03 | `TODO` | |
-| M2-T05 | Question planner: greedy choice of the missing field that appears in the most `NEEDS_INFO` rules; respects max 8 questions; never asks for known fields. | CC | M2-T03 | `TODO` | |
-| M2-T06 | Unit tests with **≥ 95% coverage** of `eligibility/` (property-based tests with Hypothesis for the evaluator). | CC | M2-T05 | `TODO` | |
-| M2-T07 | Eval set v0: profile generator + first **30 profiles** in `evals/profiles.jsonl` with expected verdicts for the 10 schemes. | CC | M2-T03 | `TODO` | |
-| M2-T08 | Hand-check the 30 eval labels. | HUMAN | M2-T07 | `TODO` | |
-| M2-T09 | `sahayak eval --suite eligibility` runner → Markdown report + `eval_runs` row; add to CI. | CC | M2-T07 | `TODO` | |
+| M2-T01 | Pydantic models for the rule DSL: conditions (`==, !=, <, <=, >, >=, in, not_in, exists`), combinators (`all, any, not`), `source_refs`. Leave optional `required_documents` and `application_window` fields (used in M10). JSON Schema export. | CC | M0 | `DONE` | `SchemeRule` = TRD §9.2 document + §8C `required_documents` / `application_window`; `validate_rule` lists every issue; `rule_json_schema` / `sahayak rules schema`; 36 tests. d1bf536 |
+| M2-T02 | `UserProfile` model (TRD §9.1, including the sensitive and document-related fields) and `FieldSource`. | CC | M0 | `DONE` | `UserProfile` (TRD §9.1, validated ranges, state codes, sensitive flags) + `FieldSource`; field catalogue now derived from it; 31 tests (see D-023). 437a19f |
+| M2-T03 | Three-valued evaluator: returns `ELIGIBLE / NOT_ELIGIBLE / NEEDS_INFO`, the passed and failed conditions, and the missing fields. Correct short-circuit logic for `all`/`any`/`not` with unknowns. | CC | M2-T01, M2-T02 | `DONE` | Kleene evaluator with short-circuit, `ConditionCheck` passed/failed with negation, missing fields; `exists` never rules out; 28 example + 7 Hypothesis property tests (see D-024). 7b80170 |
+| M2-T04 | Rule validation on save: unknown fields/operators rejected, value types checked against `UserProfile`. | CC | M2-T03 | `DONE` | Shape checked on every save, meaning on approval; ORM hook refuses invalid approved rules; rules re-validated on load; `sahayak rules export` to `data/rules/`; 4 unit + 4 Postgres tests (see D-025, D-026). 2e511d7 |
+| M2-T05 | Question planner: greedy choice of the missing field that appears in the most `NEEDS_INFO` rules; respects max 8 questions; never asks for known fields. | CC | M2-T03 | `DONE` | Greedy `next_question`: most NEEDS_INFO schemes, non-sensitive first on ties, skips known/declined fields, stops at 8; 9 tests (see D-027). 51bedab |
+| M2-T06 | Unit tests with **≥ 95% coverage** of `eligibility/` (property-based tests with Hypothesis for the evaluator). | CC | M2-T05 | `DONE` | `eligibility/` at 100% (unit + integration; 97% unit-only); CI fails below 95%. c37f629 |
+| M2-T07 | Eval set v0: profile generator + first **30 profiles** in `evals/profiles.jsonl` with expected verdicts for the 10 schemes. | CC | M2-T03 | `DONE` | 30 profiles labelled for all 10 schemes by an independent plain-Python reference (boundaries, missing fields; reasons per label); 16 tests (see D-028). 6b82bd1 |
+| M2-T08 | Hand-check the 30 eval labels. | HUMAN | M2-T07 | `TODO` | Waiting on Prathmesh: check `reasons` in `evals/profiles.jsonl`, fix labels in place, set `label_status` to `checked`. Judgement calls listed in D-028. |
+| M2-T09 | `sahayak eval --suite eligibility` runner → Markdown report + `eval_runs` row; add to CI. | CC | M2-T07 | `DONE` | Report (accuracy, confusion matrix, per-scheme P/R/F1, mismatches) + `eval_runs` row; exits 1 below 90%; CI `eval` job on the committed rule snapshot; 9 unit + 1 Postgres test. d7122bd |
 
 **Exit criteria**
-- [ ] ≥ 95% coverage on `eligibility/`.
-- [ ] Eligibility eval ≥ 90% accuracy on approved rules, running in CI.
+- [x] ≥ 95% coverage on `eligibility/`. *2026-10-17: 100% with unit + Postgres integration tests (97% unit-only); CI gates at 95%.*
+- [ ] Eligibility eval ≥ 90% accuracy on approved rules, running in CI. *The eval runs in CI (new `eval` job, checked locally against a fresh migrated database), but there are no approved rules yet (M1-T14), so CI reports "nothing scored". Preview against the 10 M1 drafts: 97.7% (293/300); every mismatch is a draft mistake that review should fix (D-028). To finish: approve rules (M1-T14), `sahayak rules export`, commit `data/rules/`, and hand-check labels (M2-T08).*
 
 ---
 
@@ -417,7 +417,8 @@ Claude Code lists here every HUMAN task that is currently blocking progress.
 
 | Task ID | What's needed | Blocking | Date raised |
 |---|---|---|---|
-| M1-T14 | Review and approve the 10 draft rules (`sahayak rules review <id>`) | M2 evals on approved rules (M2-T07, M2 exit criterion) | 2026-10-17 |
+| M1-T14 | Review and approve the 10 draft rules (`sahayak rules review <id>`), then `sahayak rules export` and commit `data/rules/` | M2 exit criterion: eval on approved rules in CI | 2026-10-17 |
+| M2-T08 | Hand-check the 30 eval labels in `evals/profiles.jsonl` (see D-028) | M2 exit criterion | 2026-10-17 |
 
 ---
 
@@ -427,5 +428,6 @@ Claude Code adds one entry per completed milestone (newest first).
 
 | Date | Milestone | Summary | Commit |
 |---|---|---|---|
+| 2026-10-17 | M2 | `UserProfile`, full rule DSL with JSON Schema, three-valued evaluator, save-time validation, greedy question planner, 30-profile eval set and `sahayak eval` in CI. `eligibility/` coverage 100%. Eval on approved rules waits on M1-T14 and M2-T08. | d7122bd |
 | 2026-10-17 | M1 | Data layer and ingestion: ORM models + migration, LLM and embedding providers, prompt loader, manifest of 10 schemes, polite fetcher (with connect retry), HTML/PDF parsers, chunker, idempotent indexer, LLM rule drafting with a minimal rule DSL, `sahayak ingest` / `rules list` / `rules review`, end-to-end test. 280 tests pass (3 Redis tests skip locally). 10 schemes ingested locally and v1 rules drafted for all 10 with gpt-4o (OpenAI API, D-022); re-run is a no-op. Decisions D-011 to D-022. Waiting for review; rule approval is M1-T14. | aa49bf4 (branch `m1-data-ingestion`) |
 | 2026-10-10 | M0 | Project skeleton: layout, CLAUDE.md, uv/ruff/mypy/pytest, pre-commit, settings, logging/tracing/redaction, FastAPI app with health and readiness, Docker + compose, async DB + Alembic baseline (pgvector), test fixtures, CI, justfile. 10 decisions (D-001 to D-010). CI green on PR #1 after two CI fixes (setup-uv pin, Alembic path_separator). Reviewed, merged and marked DONE by Prathmesh. | d5c3a3f (merge) |

@@ -1,4 +1,5 @@
 import io
+import json
 
 import pytest
 import typer
@@ -9,6 +10,7 @@ from sahayak.cli import app
 from sahayak.cli import ingest as ingest_cli
 from sahayak.cli.ingest import print_reports, select_schemes
 from sahayak.config import Settings
+from sahayak.eligibility.rules import rule_json_schema
 from sahayak.ingestion.index import IndexStats
 from sahayak.ingestion.manifest import SchemeSpec
 from sahayak.ingestion.pipeline import SchemeReport
@@ -34,8 +36,18 @@ def test_help_lists_the_commands() -> None:
     assert result.exit_code == 0
     assert "ingest" in result.output
     assert "rules" in result.output
+    assert "eval" in result.output
     assert "review" in rules.output
     assert "list" in rules.output
+    assert "export" in rules.output
+    assert "schema" in rules.output
+
+
+def test_rules_schema_prints_the_json_schema() -> None:
+    result = runner.invoke(app, ["rules", "schema"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == rule_json_schema()
 
 
 def test_select_schemes_keeps_order_and_drops_repeats() -> None:

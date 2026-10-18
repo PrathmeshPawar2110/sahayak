@@ -1,13 +1,18 @@
-"""Profile fields that eligibility rules may test (TRD §9.1).
+"""Profile fields that eligibility rules may test, derived from `UserProfile` (TRD §9.1).
 
-Until M2-T02 builds the `UserProfile` model, this catalogue is the contract between rule
-extraction and the rule engine: a rule may only name a field listed here, with a value of that
-field's type. `ProfileFieldName` lists the same names statically so they can be offered to the LLM
-as an enum.
+`UserProfile` is the single source of truth for names, types, choices, constraints and
+descriptions; this module flattens it into a catalogue the rule validator and the rule-extraction
+prompt can use. `ProfileFieldName` lists the same names statically so they can be offered to the
+LLM as an enum (a test keeps the two equal).
 """
 
-from dataclasses import dataclass
-from typing import Literal
+from dataclasses import dataclass, field
+from typing import Annotated, Any, Literal, get_args, get_origin
+
+from pydantic import TypeAdapter, ValidationError
+from pydantic.fields import FieldInfo
+
+from sahayak.eligibility.profile import UserProfile
 
 FieldKind = Literal["int", "float", "bool", "str", "enum"]
 
@@ -40,77 +45,73 @@ ProfileFieldName = Literal[
     "residence",
 ]
 
+# `UserProfile` fields that describe the conversation, not the citizen.
+NON_ELIGIBILITY_FIELDS = frozenset({"language", "field_sources"})
+
+_KINDS: dict[type, FieldKind] = {int: "int", float: "float", bool: "bool", str: "str"}
+
 
 @dataclass(frozen=True)
 class ProfileField:
     name: str
     kind: FieldKind
     description: str
+    # Validates one value against the field's type and constraints (range, pattern...).
+    adapter: TypeAdapter[Any] = field(compare=False, repr=False)
     choices: tuple[str, ...] = ()
     sensitive: bool = False  # TRD §8B: optional, consent-gated, never inferred
 
+    def value_problem(self, value: object) -> str | None:
+        """Why `value` can't be a value of this field, or None if it can."""
+        if self.kind == "enum":
+            if isinstance(value, str) and value in self.choices:
+                return None
+            return f"{value!r} is not one of: {', '.join(self.choices)}"
+        is_number = isinstance(value, int | float) and not isinstance(value, bool)
+        type_ok = {
+            "bool": isinstance(value, bool),
+            "int": is_number and isinstance(value, int),
+            "float": is_number,
+            "str": isinstance(value, str),
+        }[self.kind]
+        if not type_ok:
+            return f"{value!r} is not a valid {self.kind} for {self.name}"
+        try:
+            normalised = self.adapter.validate_python(value)
+        except ValidationError as exc:
+            reason = exc.errors()[0]["msg"]
+            return f"{value!r} is not a valid {self.name}: {reason[0].lower()}{reason[1:]}"
+        if normalised != value:
+            return f"{value!r} is not a valid {self.name}: write it as {normalised!r}"
+        return None
+
+
+def _profile_field(name: str, info: FieldInfo) -> ProfileField:
+    (inner,) = (arg for arg in get_args(info.annotation) if arg is not type(None))
+    base = get_args(inner)[0] if get_origin(inner) is Annotated else inner
+    extra = info.json_schema_extra if isinstance(info.json_schema_extra, dict) else {}
+    if get_origin(base) is Literal:
+        kind: FieldKind = "enum"
+        choices = tuple(str(choice) for choice in get_args(base))
+    else:
+        kind, choices = _KINDS[base], ()
+    return ProfileField(
+        name=name,
+        kind=kind,
+        description=info.description or name,
+        choices=choices,
+        sensitive=bool(extra.get("sensitive", False)),
+        adapter=TypeAdapter(_with_metadata(inner, info)),
+    )
+
+
+def _with_metadata(annotation: Any, info: FieldInfo) -> Any:
+    # Field-level constraints such as `ge=0` live in `metadata`, not in the annotation.
+    return Annotated[annotation, *info.metadata] if info.metadata else annotation
+
 
 PROFILE_FIELDS: dict[str, ProfileField] = {
-    field.name: field
-    for field in (
-        ProfileField("state", "str", "State of residence as an ISO 3166-2:IN code, e.g. MH"),
-        ProfileField("district", "str", "District of residence"),
-        ProfileField("age", "int", "Age in completed years"),
-        ProfileField("gender", "enum", "Gender", ("male", "female", "other")),
-        ProfileField(
-            "annual_family_income_inr", "int", "Total annual income of the family, in rupees"
-        ),
-        ProfileField(
-            "social_category",
-            "enum",
-            "Social category",
-            ("general", "obc", "sc", "st", "ews", "vjnt", "sbc", "nt"),
-            sensitive=True,
-        ),
-        ProfileField("caste_name", "str", "Name of the caste", sensitive=True),
-        ProfileField(
-            "caste_validity_verified", "bool", "Holds a Maharashtra caste validity certificate"
-        ),
-        ProfileField("is_non_creamy_layer", "bool", "Belongs to the non-creamy layer"),
-        ProfileField("religion", "str", "Religion, self-declared", sensitive=True),
-        ProfileField("is_minority", "bool", "Belongs to a notified minority", sensitive=True),
-        ProfileField("domicile_state", "str", "State of domicile as an ISO 3166-2:IN code"),
-        ProfileField(
-            "disability_percent", "int", "Certified disability percentage", sensitive=True
-        ),
-        ProfileField("current_course", "str", "Course currently being studied"),
-        ProfileField("marks_percent", "float", "Percentage in the last qualifying exam"),
-        ProfileField(
-            "occupation",
-            "enum",
-            "Main occupation",
-            (
-                "farmer",
-                "agri_labourer",
-                "daily_wage",
-                "street_vendor",
-                "artisan",
-                "student",
-                "salaried",
-                "self_employed",
-                "unemployed",
-                "homemaker",
-                "other",
-            ),
-        ),
-        ProfileField("land_holding_acres", "float", "Cultivable land owned, in acres"),
-        ProfileField("is_bpl", "bool", "Family is below the poverty line"),
-        ProfileField(
-            "has_ration_card", "enum", "Ration card held", ("none", "apl", "bpl", "aay", "phh")
-        ),
-        ProfileField("disability", "bool", "Has a disability", sensitive=True),
-        ProfileField("is_income_tax_payer", "bool", "Anyone in the family paid income tax"),
-        ProfileField("is_govt_employee", "bool", "Is a serving or retired government employee"),
-        ProfileField(
-            "marital_status", "enum", "Marital status", ("single", "married", "widowed", "divorced")
-        ),
-        ProfileField("num_children", "int", "Number of children"),
-        ProfileField("education_level", "str", "Highest education completed"),
-        ProfileField("residence", "enum", "Rural or urban residence", ("rural", "urban")),
-    )
+    name: _profile_field(name, info)
+    for name, info in UserProfile.model_fields.items()
+    if name not in NON_ELIGIBILITY_FIELDS
 }

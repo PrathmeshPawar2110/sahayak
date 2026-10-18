@@ -1,7 +1,9 @@
-"""`sahayak rules ...`: list rule status per scheme and review LLM-drafted rules."""
+"""`sahayak rules ...`: list, review and export eligibility rules."""
 
 import asyncio
+import json
 from collections.abc import Callable
+from pathlib import Path
 from typing import Annotated
 
 import click
@@ -17,7 +19,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sahayak.config import get_settings
 from sahayak.db.models import EligibilityRule, RuleStatus, Scheme
 from sahayak.db.session import create_engine, create_session_factory
-from sahayak.eligibility.rules import describe, parse_logic
+from sahayak.eligibility.rules import SchemeRule, describe, parse_logic, rule_json_schema
+from sahayak.eligibility.store import RULES_DIR, load_approved_rules, write_rule_files
 from sahayak.ingestion.review import (
     ReviewError,
     apply_edit,
@@ -53,6 +56,36 @@ def list_rules() -> None:
             await engine.dispose()
 
     asyncio.run(run())
+
+
+@rules_app.command("export")
+def export(
+    directory: Annotated[
+        Path, typer.Option("--dir", help="Where to write <scheme_id>.json files.")
+    ] = RULES_DIR,
+) -> None:
+    """Snapshot the approved rules into JSON files (what CI's eligibility eval reads)."""
+    settings = get_settings()
+    configure_logging(settings)
+
+    async def run() -> dict[str, SchemeRule]:
+        engine = create_engine(settings)
+        try:
+            async with create_session_factory(engine)() as session:
+                return await load_approved_rules(session)
+        finally:
+            await engine.dispose()
+
+    rules = asyncio.run(run())
+    for path in write_rule_files(rules, directory):
+        console.print(f"wrote {path}")
+    console.print(f"{len(rules)} approved rule(s) exported to {directory}.")
+
+
+@rules_app.command("schema")
+def schema() -> None:
+    """Print the JSON Schema of a rule document."""
+    typer.echo(json.dumps(rule_json_schema(), indent=2, ensure_ascii=False))
 
 
 @rules_app.command("review")
