@@ -145,6 +145,20 @@ def join(parts: Sequence[bytes], to: AudioFormat) -> bytes:
     return encode(parts, to)
 
 
+def to_pcm(data: bytes, sample_rate: int) -> bytes:
+    """Decode audio to 16-bit little-endian mono PCM at `sample_rate` (what the stream takes)."""
+    resampler = av.AudioResampler(format="s16", layout="mono", rate=sample_rate)
+    chunks: list[bytes] = []
+    try:
+        with av.open(io.BytesIO(data), mode="r") as source:
+            for frame in source.decode(audio=0):
+                chunks += [bytes(f.planes[0])[: f.samples * 2] for f in resampler.resample(frame)]
+        chunks += [bytes(f.planes[0])[: f.samples * 2] for f in resampler.resample(None)]
+    except (av.error.FFmpegError, ValueError) as exc:
+        raise AudioError(f"could not decode audio: {type(exc).__name__}") from exc
+    return b"".join(chunks)
+
+
 def duration_sec(data: bytes) -> float:
     """Length of the audio in seconds, by decoding it."""
     try:

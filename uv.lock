@@ -1766,6 +1766,7 @@ dependencies = [
     { name = "trafilatura" },
     { name = "typer" },
     { name = "uvicorn", extra = ["standard"] },
+    { name = "websockets" },
 ]
 
 [package.dev-dependencies]
@@ -1816,6 +1817,7 @@ requires-dist = [
     { name = "trafilatura", specifier = ">=2.3.1" },
     { name = "typer", specifier = ">=0.27.3" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
+    { name = "websockets", specifier = ">=16.1,<17" },
 ]
 
 [package.metadata.requires-dev]
