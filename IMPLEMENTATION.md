@@ -41,7 +41,7 @@
 | M0 | Project skeleton | §14, §13, §17 | `DONE` | 2026-10-10 | 2026-10-10 |
 | M1 | Data layer and ingestion | §8, §9 | `NEEDS_REVIEW` | 2026-10-10 | |
 | M2 | Rule engine and question planner | §9.2, §10 | `NEEDS_REVIEW` | 2026-10-17 | |
-| M3 | RAG retriever | §7, §8 | `IN_PROGRESS` | 2026-10-18 | |
+| M3 | RAG retriever | §7, §8 | `NEEDS_REVIEW` | 2026-10-18 | |
 | M4 | LangGraph agent (text only) | §10, §11 | `TODO` | | |
 | M5 | Voice pipeline | §7, FR-1–3, FR-10 | `TODO` | | |
 | M6 | Web frontend | §14 M6 | `TODO` | | |
@@ -133,7 +133,7 @@
 
 ## M3 — RAG retriever
 
-**Status:** `IN_PROGRESS`
+**Status:** `NEEDS_REVIEW`
 
 | ID | Task | Owner | Depends | Status | Notes |
 |---|---|---|---|---|---|
@@ -141,10 +141,10 @@
 | M3-T02 | Full-text search (Postgres `tsvector`, `simple` config for hi/mr + `english` for en). | CC | M1 | `DONE` | `fulltext_search`: query terms OR-ed (not AND-ed), `english` for en chunks and `simple` for hi/mr, length-normalised `ts_rank`, same filter; both branches use the GIN index; 11 Postgres tests. 795affd |
 | M3-T03 | Reciprocal Rank Fusion of both result lists; top-k=5; dedupe by chunk. | CC | M3-T01, M3-T02 | `DONE` | `reciprocal_rank_fusion` (k=60, best rank per list, deterministic ties) and `HybridRetriever` (20 candidates per search, top 5, counts-only logging); 11 unit + 4 Postgres tests (see D-029). 7eb0e01 |
 | M3-T04 | Language-aware querying: query in the user's language and, if useful, an English translation; merge results. | CC | M3-T03 | `DONE` | hi/mr (or Devanagari) queries also searched in English via `LLMQueryTranslator` (prompt `query_translation@v1`); four lists fused; falls back to the original on LLM errors; 11 unit + 5 Postgres + 3 live tests (see D-030). ac0458c |
-| M3-T05 | Retrieval test set (~30 queries in hi/mr/en with expected scheme/chunk) + recall@5 metric in the eval runner. | CC | M3-T03 | `IN_PROGRESS` | |
+| M3-T05 | Retrieval test set (~30 queries in hi/mr/en with expected scheme/chunk) + recall@5 metric in the eval runner. | CC | M3-T03 | `DONE` | 31 queries (11 en, 10 hi, 10 mr) with scheme or phrase-narrowed chunk targets; `sahayak eval --suite retrieval` (recall@5, hit@1, MRR per language, misses, `eval_runs` row, exit 1 below 0.85); on demand, not CI; 12 unit + 1 Postgres test (see D-031). 0f6745b |
 
 **Exit criteria**
-- [ ] recall@5 ≥ 0.85 on the retrieval test set.
+- [x] recall@5 ≥ 0.85 on the retrieval test set. *2026-10-18, local Postgres 16 + pgvector (pgserver) with the M1 index (165 chunks, 10 schemes) and the real multilingual-e5-large: recall@5 **0.919** on 31 queries (hi 0.90, mr 0.90, en 0.955), hit@1 0.871, MRR 0.895 with gpt-4o query translation; without translation recall@5 is also 0.919, hit@1 0.742. Both runs recorded in `eval_runs`. Three misses analysed in D-031.*
 
 ---
 
@@ -427,6 +427,7 @@ Claude Code adds one entry per completed milestone (newest first).
 
 | Date | Milestone | Summary | Commit |
 |---|---|---|---|
+| 2026-10-18 | M3 | RAG retriever: filtered pgvector search (exact when restricted to schemes), OR-term full-text search (`english` / `simple`), RRF fusion to the top 5, LLM translation of hi/mr queries with all lists fused, 31-query retrieval eval with `sahayak eval --suite retrieval`. recall@5 0.919 (target 0.85). 491 tests pass locally (3 Redis tests skip). Decisions D-029 to D-031. Waiting for review. | 0f6745b (branch `m3-rag-retriever`) |
 | 2026-10-17 | M2 | `UserProfile`, full rule DSL with JSON Schema, three-valued evaluator, save-time validation, greedy question planner, 30-profile eval set and `sahayak eval` in CI. `eligibility/` coverage 100%. Eval on approved rules waits on M1-T14 and M2-T08. | d7122bd |
 | 2026-10-17 | M1 | Data layer and ingestion: ORM models + migration, LLM and embedding providers, prompt loader, manifest of 10 schemes, polite fetcher (with connect retry), HTML/PDF parsers, chunker, idempotent indexer, LLM rule drafting with a minimal rule DSL, `sahayak ingest` / `rules list` / `rules review`, end-to-end test. 280 tests pass (3 Redis tests skip locally). 10 schemes ingested locally and v1 rules drafted for all 10 with gpt-4o (OpenAI API, D-022); re-run is a no-op. Decisions D-011 to D-022. Waiting for review; rule approval is M1-T14. | aa49bf4 (branch `m1-data-ingestion`) |
 | 2026-10-10 | M0 | Project skeleton: layout, CLAUDE.md, uv/ruff/mypy/pytest, pre-commit, settings, logging/tracing/redaction, FastAPI app with health and readiness, Docker + compose, async DB + Alembic baseline (pgvector), test fixtures, CI, justfile. 10 decisions (D-001 to D-010). CI green on PR #1 after two CI fixes (setup-uv pin, Alembic path_separator). Reviewed, merged and marked DONE by Prathmesh. | d5c3a3f (merge) |

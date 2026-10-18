@@ -82,6 +82,35 @@ Each run writes `evals/reports/<date>-eligibility.md` (accuracy, confusion matri
 precision/recall/F1 and every mismatch) and exits 1 below `--min-accuracy` (default 0.9). CI runs
 it on every PR.
 
+## Retrieval
+
+`sahayak.rag.retriever.HybridRetriever` finds the scheme passages behind an answer: pgvector cosine search
+and Postgres full-text search, each filtered to schemes that are `active` or `provisional` and
+central or in the user's state, fused with Reciprocal Rank Fusion into the top 5 chunks. A Hindi
+or Marathi query is also translated to English with the LLM and searched again, because the
+scheme sources are English. See D-029 and D-030.
+
+```python
+retriever = HybridRetriever(embedder, translator=LLMQueryTranslator(llm))
+retrieval = await retriever.retrieve(
+    session, "माझ्याकडे दोन एकर शेती आहे", language=Language.MR,
+    search_filter=SearchFilter.for_user("MH"),
+)
+```
+
+The retrieval eval scores 31 hi/mr/en queries in
+[evals/retrieval.jsonl](evals/retrieval.jsonl) (recall@5, hit@1, MRR, per language; D-031). It
+needs the ingested schemes and the embedding model, so it runs on demand, not in CI:
+
+```sh
+uv run sahayak eval --suite retrieval                    # with query translation (calls the LLM)
+uv run sahayak eval --suite retrieval --no-translate     # embeddings only
+uv run sahayak eval --suite all                          # eligibility + retrieval
+```
+
+On the 10 M1 schemes it reaches recall@5 0.919 (target 0.85), with hit@1 0.871 using translation
+and 0.742 without.
+
 ### Windows notes
 
 - If the repo lives under OneDrive, set `UV_LINK_MODE=copy` (OneDrive rejects uv's hard links),
