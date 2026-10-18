@@ -1,4 +1,4 @@
-"""`sahayak eval --suite eligibility`: score the rule engine against the labelled profiles."""
+"""`sahayak eval --suite eligibility|retrieval|all`: score the rule engine and the retriever."""
 
 import asyncio
 import os
@@ -11,7 +11,7 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
-from sahayak.config import get_settings
+from sahayak.config import Settings, get_settings
 from sahayak.db.session import create_engine, create_session_factory
 from sahayak.eligibility.store import (
     RULES_DIR,
@@ -19,6 +19,7 @@ from sahayak.eligibility.store import (
     load_latest_rules,
     load_rule_files,
 )
+from sahayak.evals import retrieval as retrieval_eval
 from sahayak.evals.dataset import PROFILES_PATH, load_profiles
 from sahayak.evals.eligibility import (
     EligibilityEval,
@@ -27,14 +28,19 @@ from sahayak.evals.eligibility import (
     run_config,
     run_eligibility_eval,
 )
+from sahayak.llm.factory import LLMConfigError, create_llm_provider
 from sahayak.observability.logging import configure_logging
+from sahayak.rag.embeddings import create_embedding_provider
+from sahayak.rag.retriever import HybridRetriever
+from sahayak.rag.translation import LLMQueryTranslator
 
 console = Console()
 
 
 class Suite(StrEnum):
     ELIGIBILITY = "eligibility"
-    ALL = "all"  # every suite that exists so far
+    RETRIEVAL = "retrieval"  # needs the ingested index and the embedding model
+    ALL = "all"  # every suite
 
 
 class RulesSource(StrEnum):
@@ -50,23 +56,70 @@ def eval_command(
     ] = RulesSource.FILES,
     rules_dir: Annotated[Path, typer.Option(help="Rule snapshot for --rules files.")] = RULES_DIR,
     dataset: Annotated[Path, typer.Option(help="Labelled profiles (JSONL).")] = PROFILES_PATH,
-    report_dir: Annotated[Path, typer.Option(help="Where to write the report.")] = Path(
+    queries: Annotated[
+        Path, typer.Option(help="Retrieval queries with targets (JSONL).")
+    ] = retrieval_eval.QUERIES_PATH,
+    report_dir: Annotated[Path, typer.Option(help="Where to write the reports.")] = Path(
         "evals/reports"
     ),
     min_accuracy: Annotated[
         float, typer.Option(min=0, max=1, help="Fail below this verdict accuracy.")
     ] = 0.9,
+    min_recall: Annotated[
+        float, typer.Option(min=0, max=1, help="Fail below this retrieval recall@5.")
+    ] = 0.85,
+    translate: Annotated[
+        bool, typer.Option(help="Also search Hindi/Marathi queries in English (calls the LLM).")
+    ] = True,
     record: Annotated[
         bool, typer.Option(help="Save the metrics as an eval_runs row (needs DATABASE_URL).")
     ] = True,
 ) -> None:
-    """Run an eval suite, write a Markdown report and record the run."""
+    """Run eval suites, write a Markdown report per suite and record each run."""
     settings = get_settings()
     configure_logging(settings)
-    if rules is RulesSource.LATEST and record:
+    if rules is RulesSource.LATEST and record and suite is not Suite.RETRIEVAL:
         raise typer.BadParameter("--rules latest previews drafts; add --no-record")
-    profiles = load_profiles(dataset)
+    report_dir.mkdir(parents=True, exist_ok=True)
     git_sha = current_git_sha()
+    passed = True
+    if suite in (Suite.ELIGIBILITY, Suite.ALL):
+        passed &= _eligibility(
+            settings,
+            rules=rules,
+            rules_dir=rules_dir,
+            dataset=dataset,
+            report_dir=report_dir,
+            min_accuracy=min_accuracy,
+            record=record,
+            git_sha=git_sha,
+        )
+    if suite in (Suite.RETRIEVAL, Suite.ALL):
+        passed &= _retrieval(
+            settings,
+            queries=queries,
+            report_dir=report_dir,
+            min_recall=min_recall,
+            translate=translate,
+            record=record,
+            git_sha=git_sha,
+        )
+    if not passed:
+        raise typer.Exit(1)
+
+
+def _eligibility(
+    settings: Settings,
+    *,
+    rules: RulesSource,
+    rules_dir: Path,
+    dataset: Path,
+    report_dir: Path,
+    min_accuracy: float,
+    record: bool,
+    git_sha: str | None,
+) -> bool:
+    profiles = load_profiles(dataset)
     source = f"{rules_dir.as_posix()}/*.json" if rules is RulesSource.FILES else rules.value
 
     async def run() -> EligibilityEval:
@@ -92,16 +145,81 @@ def eval_command(
 
     result = asyncio.run(run())
     report = render_report(result, git_sha=git_sha, dataset=dataset, min_accuracy=min_accuracy)
-    report_dir.mkdir(parents=True, exist_ok=True)
-    path = report_dir / f"{datetime.now(UTC):%Y-%m-%d}-eligibility.md"
-    path.write_bytes(report.encode("utf-8"))
-    console.print(report, markup=False, highlight=False)
-    console.print(f"Report written to {path}")
+    _write_report(report_dir, "eligibility", report)
     if result.accuracy is None:
         console.print("[yellow]No rules to evaluate: nothing was scored.[/yellow]")
     elif result.accuracy < min_accuracy:
         console.print(f"[red]Accuracy {result.accuracy:.1%} is below {min_accuracy:.0%}.[/red]")
-        raise typer.Exit(1)
+        return False
+    return True
+
+
+def _retrieval(
+    settings: Settings,
+    *,
+    queries: Path,
+    report_dir: Path,
+    min_recall: float,
+    translate: bool,
+    record: bool,
+    git_sha: str | None,
+) -> bool:
+    loaded = retrieval_eval.load_queries(queries)
+    translator = None
+    if translate:
+        try:
+            translator = LLMQueryTranslator(create_llm_provider(settings))
+        except LLMConfigError as exc:
+            raise typer.BadParameter(f"{exc}; or run with --no-translate") from exc
+    embedder = create_embedding_provider(settings)
+    retriever = HybridRetriever(embedder, translator=translator)
+    embedding_model = f"{embedder.name}:{embedder.model}"
+    translator_id = None if translator is None else translator.prompt_id
+
+    async def run() -> retrieval_eval.RetrievalEval:
+        engine = create_engine(settings)
+        try:
+            async with create_session_factory(engine)() as session:
+                result = await retrieval_eval.run_retrieval_eval(
+                    session, retriever, loaded, translated=translator is not None
+                )
+                if record:
+                    config = retrieval_eval.run_config(
+                        result,
+                        dataset=queries,
+                        min_recall=min_recall,
+                        embedding_model=embedding_model,
+                        translator=translator_id,
+                    )
+                    await retrieval_eval.record_run(session, result, git_sha=git_sha, config=config)
+                    await session.commit()
+                return result
+        finally:
+            await engine.dispose()
+
+    result = asyncio.run(run())
+    report = retrieval_eval.render_report(
+        result,
+        git_sha=git_sha,
+        dataset=queries,
+        min_recall=min_recall,
+        embedding_model=embedding_model,
+    )
+    _write_report(report_dir, "retrieval", report)
+    recall = result.overall.recall
+    if recall is None:
+        console.print("[yellow]No retrieval queries: nothing was scored.[/yellow]")
+    elif recall < min_recall:
+        console.print(f"[red]recall@{result.k} {recall:.3f} is below {min_recall:.2f}.[/red]")
+        return False
+    return True
+
+
+def _write_report(report_dir: Path, suite: str, report: str) -> None:
+    path = report_dir / f"{datetime.now(UTC):%Y-%m-%d}-{suite}.md"
+    path.write_bytes(report.encode("utf-8"))
+    console.print(report, markup=False, highlight=False)
+    console.print(f"Report written to {path}")
 
 
 def current_git_sha() -> str | None:
