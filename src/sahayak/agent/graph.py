@@ -19,9 +19,12 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.runtime import Runtime
 
 from sahayak.agent.deps import AgentDeps
+from sahayak.agent.nodes.check_eligibility import check_eligibility
 from sahayak.agent.nodes.classify_intent import classify_intent
 from sahayak.agent.nodes.extract_profile import extract_profile
+from sahayak.agent.nodes.filter_results import filter_results
 from sahayak.agent.nodes.load_user_context import load_user_context
+from sahayak.agent.nodes.shortlist_schemes import shortlist_schemes
 from sahayak.agent.state import AgentState
 
 type AgentGraph = CompiledStateGraph[AgentState, AgentDeps, AgentState, AgentState]
@@ -52,10 +55,10 @@ def build_graph(checkpointer: BaseCheckpointSaver[Any] | None = None) -> AgentGr
     graph.add_node("load_user_context", load_user_context)
     graph.add_node("classify_intent", classify_intent)
     graph.add_node("extract_profile", extract_profile)
+    graph.add_node("shortlist_schemes", shortlist_schemes)
+    graph.add_node("check_eligibility", check_eligibility)
+    graph.add_node("filter_results", filter_results)
     for name in (
-        "shortlist_schemes",
-        "check_eligibility",
-        "filter_results",
         "plan_question",
         "retrieve_evidence",
         "compose_response",

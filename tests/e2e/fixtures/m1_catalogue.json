@@ -1,0 +1,715 @@
+{
+  "schemes": [
+    {
+      "id": "ab-pmjay",
+      "name_en": "Ayushman Bharat Pradhan Mantri Jan Arogya Yojana (AB PM-JAY)",
+      "name_hi": "आयुष्मान भारत प्रधानमंत्री जन आरोग्य योजना",
+      "name_mr": "आयुष्मान भारत प्रधानमंत्री जन आरोग्य योजना",
+      "aliases": [
+        "PM-JAY",
+        "PMJAY",
+        "Ayushman Bharat",
+        "Ayushman Card",
+        "आयुष्मान भारत"
+      ],
+      "level": "central",
+      "state": null,
+      "status": "provisional",
+      "benefits": "Cashless hospital cover of up to Rs 5 lakh per family per year at empanelled hospitals.",
+      "application_url": null,
+      "source_url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2024/sep/doc2024923400001.pdf",
+      "last_verified_at": "2026-10-17T15:21:13.069538+00:00"
+    },
+    {
+      "id": "apy",
+      "name_en": "Atal Pension Yojana (APY)",
+      "name_hi": "अटल पेंशन योजना",
+      "name_mr": "अटल पेन्शन योजना",
+      "aliases": [
+        "APY",
+        "Atal Pension",
+        "अटल पेंशन"
+      ],
+      "level": "central",
+      "state": null,
+      "status": "provisional",
+      "benefits": "Guaranteed pension of Rs 1,000 to Rs 5,000 a month from age 60, depending on contributions.",
+      "application_url": null,
+      "source_url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2025/may/doc202558551701.pdf",
+      "last_verified_at": "2026-10-17T15:21:20.927821+00:00"
+    },
+    {
+      "id": "mh-majhi-ladki-bahin",
+      "name_en": "Mukhyamantri Majhi Ladki Bahin Yojana",
+      "name_hi": "मुख्यमंत्री माझी लाडकी बहन योजना",
+      "name_mr": "मुख्यमंत्री माझी लाडकी बहीण योजना",
+      "aliases": [
+        "Ladki Bahin",
+        "Majhi Ladki Bahin",
+        "MMLBY",
+        "लाडकी बहीण"
+      ],
+      "level": "state",
+      "state": "MH",
+      "status": "provisional",
+      "benefits": "Rs 1,500 a month by direct benefit transfer to eligible women aged 21 to 65 in Maharashtra.",
+      "application_url": "https://ladakibahin.maharashtra.gov.in/",
+      "source_url": "https://pune.gov.in/scheme/mukhyamantri-majhi-ladki-bahin-yojana/",
+      "last_verified_at": "2026-10-17T15:21:27.132783+00:00"
+    },
+    {
+      "id": "mh-mjpjay",
+      "name_en": "Mahatma Jyotirao Phule Jan Arogya Yojana (MJPJAY)",
+      "name_hi": "महात्मा ज्योतिराव फुले जन आरोग्य योजना",
+      "name_mr": "महात्मा ज्योतिराव फुले जन आरोग्य योजना",
+      "aliases": [
+        "MJPJAY",
+        "Jan Arogya Yojana",
+        "Jeevandayee",
+        "Rajiv Gandhi Jeevandayee Arogya Yojana",
+        "जन आरोग्य योजना"
+      ],
+      "level": "state",
+      "state": "MH",
+      "status": "provisional",
+      "benefits": "Cashless treatment at empanelled hospitals for families in Maharashtra, integrated with AB PM-JAY.",
+      "application_url": "https://www.jeevandayee.gov.in/",
+      "source_url": "https://zpyavatmal.gov.in/en/scheme/ayushman-bharat-pradhan-mantri-jan-arogya-yojana-mahatma-jyotirao-phule-jan-arogya-yojana/",
+      "last_verified_at": "2026-10-17T15:21:25.420991+00:00"
+    },
+    {
+      "id": "pm-kisan",
+      "name_en": "Pradhan Mantri Kisan Samman Nidhi (PM-KISAN)",
+      "name_hi": "प्रधानमंत्री किसान सम्मान निधि",
+      "name_mr": "प्रधानमंत्री किसान सन्मान निधी",
+      "aliases": [
+        "PM-KISAN",
+        "PM Kisan",
+        "Kisan Samman Nidhi",
+        "पीएम किसान"
+      ],
+      "level": "central",
+      "state": null,
+      "status": "provisional",
+      "benefits": "Income support of Rs 6,000 a year to landholding farmer families, paid in three instalments.",
+      "application_url": "https://pmkisan.gov.in/",
+      "source_url": "https://pmkisan.gov.in/Documents/RevisedPM-KISANOperationalGuidelines(English).pdf",
+      "last_verified_at": "2026-10-17T15:21:09.323320+00:00"
+    },
+    {
+      "id": "pm-sym",
+      "name_en": "Pradhan Mantri Shram Yogi Maan-dhan (PM-SYM)",
+      "name_hi": "प्रधानमंत्री श्रम योगी मान-धन",
+      "name_mr": "प्रधानमंत्री श्रम योगी मानधन योजना",
+      "aliases": [
+        "PM-SYM",
+        "PMSYM",
+        "Shram Yogi Maandhan",
+        "श्रम योगी मानधन"
+      ],
+      "level": "central",
+      "state": null,
+      "status": "provisional",
+      "benefits": "Assured pension of Rs 3,000 a month after age 60 for unorganised workers, with a matching government contribution.",
+      "application_url": "https://maandhan.in/",
+      "source_url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2025/mar/doc202534512301.pdf",
+      "last_verified_at": "2026-10-17T15:21:11.681935+00:00"
+    },
+    {
+      "id": "pm-vishwakarma",
+      "name_en": "PM Vishwakarma",
+      "name_hi": "पीएम विश्वकर्मा",
+      "name_mr": "पीएम विश्वकर्मा योजना",
+      "aliases": [
+        "PM Vishwakarma Yojana",
+        "Vishwakarma Yojana",
+        "विश्वकर्मा योजना"
+      ],
+      "level": "central",
+      "state": null,
+      "status": "provisional",
+      "benefits": "Recognition, skill training, toolkit incentive and collateral-free credit for artisans in 18 traditional trades.",
+      "application_url": "https://pmvishwakarma.gov.in/",
+      "source_url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2025/sep/doc2025916638501.pdf",
+      "last_verified_at": "2026-10-17T15:21:22.060486+00:00"
+    },
+    {
+      "id": "pmay-g",
+      "name_en": "Pradhan Mantri Awaas Yojana - Gramin (PMAY-G)",
+      "name_hi": "प्रधानमंत्री आवास योजना - ग्रामीण",
+      "name_mr": "प्रधानमंत्री आवास योजना - ग्रामीण",
+      "aliases": [
+        "PMAY-G",
+        "PMAY Gramin",
+        "Awas Yojana Gramin",
+        "प्रधानमंत्री आवास योजना ग्रामीण"
+      ],
+      "level": "central",
+      "state": null,
+      "status": "provisional",
+      "benefits": "Financial assistance to build a pucca house for houseless and kutcha-house rural families.",
+      "application_url": "https://pmayg.dord.gov.in/",
+      "source_url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2024/nov/doc20241119437801.pdf",
+      "last_verified_at": "2026-10-17T15:21:14.009873+00:00"
+    },
+    {
+      "id": "pmuy",
+      "name_en": "Pradhan Mantri Ujjwala Yojana (PMUY)",
+      "name_hi": "प्रधानमंत्री उज्ज्वला योजना",
+      "name_mr": "प्रधानमंत्री उज्ज्वला योजना",
+      "aliases": [
+        "PMUY",
+        "Ujjwala",
+        "Ujjwala 2.0",
+        "उज्ज्वला योजना"
+      ],
+      "level": "central",
+      "state": null,
+      "status": "provisional",
+      "benefits": "Deposit-free LPG connection for adult women from poor households.",
+      "application_url": "https://www.pmuy.gov.in/",
+      "source_url": "https://www.pmuy.gov.in/ujjwala2.html",
+      "last_verified_at": "2026-10-17T15:21:16.729336+00:00"
+    },
+    {
+      "id": "ssy",
+      "name_en": "Sukanya Samriddhi Yojana (SSY)",
+      "name_hi": "सुकन्या समृद्धि योजना",
+      "name_mr": "सुकन्या समृद्धी योजना",
+      "aliases": [
+        "SSY",
+        "Sukanya Samriddhi Account",
+        "SSA",
+        "सुकन्या समृद्धि"
+      ],
+      "level": "central",
+      "state": null,
+      "status": "provisional",
+      "benefits": "Small-savings account for a girl child (opened before age 10) with tax-free interest.",
+      "application_url": null,
+      "source_url": "https://www.nsiindia.gov.in/InternalPage.aspx?Id_Pk=89",
+      "last_verified_at": "2026-10-17T15:21:19.949177+00:00"
+    }
+  ],
+  "rules": [
+    {
+      "scheme_id": "ab-pmjay",
+      "version": 1,
+      "status": "draft",
+      "logic": {
+        "all": [
+          {
+            "field": "state",
+            "op": "not_in",
+            "value": [
+              "DL",
+              "WB",
+              "OD"
+            ]
+          },
+          {
+            "field": "age",
+            "op": ">=",
+            "value": 70
+          }
+        ]
+      },
+      "source_refs": [
+        {
+          "url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2024/sep/doc2024923400001.pdf",
+          "section": "Free Health Coverage for All Seniors 70+"
+        },
+        {
+          "url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2024/sep/doc2024912393201.pdf",
+          "section": "World's Largest Health Insurance Scheme extends free health cover to"
+        }
+      ],
+      "notes": "The scheme provides additional benefits for those aged 70 or above, irrespective of their socio-economic status, but excludes those in NCT of Delhi, West Bengal, and Odisha. The core scheme primarily targets the poorest 40% based on the Socio-Economic Caste Census 2011, which cannot be mapped with the provided fields."
+    },
+    {
+      "scheme_id": "apy",
+      "version": 1,
+      "status": "draft",
+      "logic": {
+        "all": [
+          {
+            "field": "age",
+            "op": ">=",
+            "value": 18
+          },
+          {
+            "field": "age",
+            "op": "<=",
+            "value": 40
+          },
+          {
+            "field": "is_income_tax_payer",
+            "op": "==",
+            "value": false
+          }
+        ]
+      },
+      "source_refs": [
+        {
+          "url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2025/may/doc202558551701.pdf",
+          "section": "Eligibility Criteria Requirement Age"
+        },
+        {
+          "url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2025/may/doc202558551701.pdf",
+          "section": "1. Target Group"
+        },
+        {
+          "url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2025/may/doc202558551701.pdf",
+          "section": "Income Taxpayer Status"
+        }
+      ],
+      "notes": "Eligibility requires the individual to be within the age range of 18 to 40 years and not an income taxpayer from 1st October 2022. The scheme is targeted at the informal sector, and having a bank account is mandatory for enrollment."
+    },
+    {
+      "scheme_id": "mh-majhi-ladki-bahin",
+      "version": 1,
+      "status": "draft",
+      "logic": {
+        "all": [
+          {
+            "field": "state",
+            "op": "==",
+            "value": "MH"
+          },
+          {
+            "field": "gender",
+            "op": "==",
+            "value": "female"
+          },
+          {
+            "field": "age",
+            "op": ">=",
+            "value": 21
+          },
+          {
+            "field": "age",
+            "op": "<=",
+            "value": 65
+          },
+          {
+            "field": "annual_family_income_inr",
+            "op": "<=",
+            "value": 250000
+          },
+          {
+            "any": [
+              {
+                "field": "marital_status",
+                "op": "==",
+                "value": "married"
+              },
+              {
+                "field": "marital_status",
+                "op": "==",
+                "value": "widowed"
+              },
+              {
+                "field": "marital_status",
+                "op": "==",
+                "value": "divorced"
+              }
+            ]
+          }
+        ]
+      },
+      "source_refs": [
+        {
+          "url": "https://pune.gov.in/scheme/mukhyamantri-majhi-ladki-bahin-yojana/",
+          "section": "Mukhyamantri – Majhi Ladki Bahin Yojana"
+        },
+        {
+          "url": "https://pune.gov.in/scheme/mukhyamantri-majhi-ladki-bahin-yojana/",
+          "section": "Eligibility"
+        }
+      ],
+      "notes": "The scheme is specifically for women residing in Maharashtra who are between 21 and 65 years and have an annual family income not exceeding ₹2,50,000. Marital status criteria include married, widowed, and divorced, but there's no field for abandoned or destitute women, or identifying the unmarried woman in a family who can be eligible."
+    },
+    {
+      "scheme_id": "mh-mjpjay",
+      "version": 1,
+      "status": "draft",
+      "logic": {
+        "all": [
+          {
+            "field": "state",
+            "op": "==",
+            "value": "MH"
+          }
+        ]
+      },
+      "source_refs": [
+        {
+          "url": "https://zpyavatmal.gov.in/en/scheme/ayushman-bharat-pradhan-mantri-jan-arogya-yojana-mahatma-jyotirao-phule-jan-arogya-yojana/",
+          "section": "Beneficiary:"
+        },
+        {
+          "url": "https://zpyavatmal.gov.in/en/scheme/ayushman-bharat-pradhan-mantri-jan-arogya-yojana-mahatma-jyotirao-phule-jan-arogya-yojana/",
+          "section": "About Scheme :"
+        },
+        {
+          "url": "https://www.zpsatara.gov.in/en/scheme/combined-mahatma-jyotirao-phule-jan-arogya-yojana-and-pradhan-mantri-jan-arogya-yojana/",
+          "section": "Beneficiary:"
+        }
+      ],
+      "notes": "The scheme covers all citizens of Maharashtra, indicating universal health coverage for the state's residents."
+    },
+    {
+      "scheme_id": "pm-kisan",
+      "version": 1,
+      "status": "draft",
+      "logic": {
+        "all": [
+          {
+            "field": "land_holding_acres",
+            "op": ">",
+            "value": 0
+          },
+          {
+            "not": {
+              "any": [
+                {
+                  "field": "is_govt_employee",
+                  "op": "==",
+                  "value": true
+                },
+                {
+                  "field": "is_income_tax_payer",
+                  "op": "==",
+                  "value": true
+                },
+                {
+                  "field": "is_non_creamy_layer",
+                  "op": "==",
+                  "value": false
+                },
+                {
+                  "field": "occupation",
+                  "op": "in",
+                  "value": [
+                    "doctor",
+                    "engineer",
+                    "lawyer",
+                    "chartered_accountant",
+                    "architect"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "source_refs": [
+        {
+          "url": "https://pmkisan.gov.in/Documents/RevisedPM-KISANOperationalGuidelines(English).pdf",
+          "section": "Exclusions"
+        },
+        {
+          "url": "https://pmkisan.gov.in/Documents/RevisedPM-KISANOperationalGuidelines(English).pdf",
+          "section": "Scheme"
+        },
+        {
+          "url": "https://pmkisan.gov.in/Documents/RevisedPM-KISANOperationalGuidelines(English).pdf",
+          "section": "Methodology for calculation of benefit"
+        }
+      ],
+      "notes": "Main criteria include holding cultivable land and not being a government employee or income tax payer. NRIs are excluded as well as individuals with certain professions."
+    },
+    {
+      "scheme_id": "pm-sym",
+      "version": 1,
+      "status": "draft",
+      "logic": {
+        "all": [
+          {
+            "field": "age",
+            "op": ">=",
+            "value": 18
+          },
+          {
+            "field": "age",
+            "op": "<=",
+            "value": 40
+          },
+          {
+            "field": "annual_family_income_inr",
+            "op": "<=",
+            "value": 180000
+          },
+          {
+            "field": "occupation",
+            "op": "in",
+            "value": [
+              "farmer",
+              "agri_labourer",
+              "daily_wage",
+              "street_vendor",
+              "artisan",
+              "unemployed",
+              "other"
+            ]
+          },
+          {
+            "not": {
+              "any": [
+                {
+                  "field": "is_income_tax_payer",
+                  "op": "==",
+                  "value": true
+                },
+                {
+                  "field": "is_govt_employee",
+                  "op": "==",
+                  "value": true
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "source_refs": [
+        {
+          "url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2025/mar/doc202534512301.pdf",
+          "section": "Pradhan Mantri Shram Yogi Maandhan Yojana"
+        },
+        {
+          "url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2025/mar/doc202534512301.pdf",
+          "section": "Eligibility Criteria"
+        }
+      ],
+      "notes": "The eligibility conditions specify a maximum monthly income of ₹15,000, which corresponds to an annual income of ₹180,000. The scheme is specifically targeted at unorganised workers. Exact occupations are hard to enforce due to generic nature; categorized generally."
+    },
+    {
+      "scheme_id": "pm-vishwakarma",
+      "version": 1,
+      "status": "draft",
+      "logic": {
+        "all": [
+          {
+            "field": "occupation",
+            "op": "in",
+            "value": [
+              "carpenter",
+              "blacksmith",
+              "potter",
+              "washerman",
+              "tailor",
+              "garland maker",
+              "cobbler",
+              "barber",
+              "mason"
+            ]
+          },
+          {
+            "field": "residence",
+            "op": "in",
+            "value": [
+              "rural",
+              "urban"
+            ]
+          },
+          {
+            "field": "age",
+            "op": ">=",
+            "value": 18
+          },
+          {
+            "field": "is_govt_employee",
+            "op": "!=",
+            "value": true
+          },
+          {
+            "field": "is_income_tax_payer",
+            "op": "!=",
+            "value": true
+          },
+          {
+            "field": "is_bpl",
+            "op": "==",
+            "value": true
+          },
+          {
+            "field": "is_non_creamy_layer",
+            "op": "==",
+            "value": true
+          },
+          {
+            "field": "education_level",
+            "op": "exists"
+          }
+        ]
+      },
+      "source_refs": [
+        {
+          "url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2025/sep/doc2025916638501.pdf",
+          "section": "Who Can Apply? Vishwakarma Scheme Eligibility Explained"
+        },
+        {
+          "url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2025/sep/doc2025916638501.pdf",
+          "section": "Eligibility conditions to be a beneficiary under the PM Vishwakarma Scheme"
+        }
+      ],
+      "notes": "The occupation list may not be exhaustive. Residency condition based on rural and urban focus. Excluded government employees as specified."
+    },
+    {
+      "scheme_id": "pmay-g",
+      "version": 1,
+      "status": "draft",
+      "logic": {
+        "all": [
+          {
+            "field": "residence",
+            "op": "==",
+            "value": "rural"
+          },
+          {
+            "field": "is_income_tax_payer",
+            "op": "!=",
+            "value": true
+          },
+          {
+            "not": {
+              "any": [
+                {
+                  "field": "is_govt_employee",
+                  "op": "==",
+                  "value": true
+                },
+                {
+                  "field": "annual_family_income_inr",
+                  "op": ">",
+                  "value": 180000
+                },
+                {
+                  "field": "land_holding_acres",
+                  "op": ">",
+                  "value": 2.5
+                }
+              ]
+            }
+          },
+          {
+            "any": [
+              {
+                "field": "is_bpl",
+                "op": "==",
+                "value": true
+              },
+              {
+                "field": "is_minority",
+                "op": "==",
+                "value": true
+              },
+              {
+                "field": "land_holding_acres",
+                "op": "<=",
+                "value": 0
+              },
+              {
+                "field": "occupation",
+                "op": "in",
+                "value": [
+                  "homemaker",
+                  "unemployed"
+                ]
+              },
+              {
+                "field": "disability",
+                "op": "==",
+                "value": true
+              },
+              {
+                "field": "caste_name",
+                "op": "in",
+                "value": [
+                  "sc",
+                  "st"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "source_refs": [
+        {
+          "url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2024/nov/doc20241119437801.pdf",
+          "section": "Eligibility Criteria for Beneficiaries"
+        },
+        {
+          "url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2024/nov/doc20241119437801.pdf",
+          "section": "Compulsory Inclusion Criteria:"
+        },
+        {
+          "url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2024/nov/doc20241119437801.pdf",
+          "section": "Exclusion Criteria"
+        }
+      ],
+      "notes": "Households with a monthly income over ₹15,000 are excluded. Specific criteria based on living conditions and verification surveys are not fully expressible with available fields."
+    },
+    {
+      "scheme_id": "pmuy",
+      "version": 1,
+      "status": "draft",
+      "logic": {
+        "all": [
+          {
+            "field": "gender",
+            "op": "==",
+            "value": "female"
+          },
+          {
+            "field": "age",
+            "op": ">=",
+            "value": 18
+          },
+          {
+            "field": "is_bpl",
+            "op": "==",
+            "value": true
+          }
+        ]
+      },
+      "source_refs": [
+        {
+          "url": "https://www.pmuy.gov.in/ujjwala2.html",
+          "section": "Eligibility criteria to avail connection under PMUY Connection"
+        }
+      ],
+      "notes": "The scheme is for women over 18 belonging to poor households, requiring them not to have an existing LPG connection in the same household and to provide a deprivation declaration."
+    },
+    {
+      "scheme_id": "ssy",
+      "version": 1,
+      "status": "draft",
+      "logic": {
+        "all": [
+          {
+            "field": "gender",
+            "op": "==",
+            "value": "female"
+          },
+          {
+            "field": "age",
+            "op": "<=",
+            "value": 10
+          }
+        ]
+      },
+      "source_refs": [
+        {
+          "url": "https://www.nsiindia.gov.in/InternalPage.aspx?Id_Pk=89",
+          "section": "Overview"
+        },
+        {
+          "url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2026/jan/doc2026121762801.pdf",
+          "section": "What is SSY account and who can open it?"
+        }
+      ],
+      "notes": "The eligibility is focused on opening an account for a girl child under 10 years. Limitations on the number of accounts per family and special provisions for twins/triplets are not mapped in the rule."
+    }
+  ]
+}

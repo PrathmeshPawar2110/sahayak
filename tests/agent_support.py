@@ -1,7 +1,9 @@
 """Shared helpers for agent tests: a small catalogue, passages and deps, with no database."""
 
+import json
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from sahayak.agent.catalogue import Catalogue, SchemeInfo, StaticCatalogueSource
@@ -173,3 +175,29 @@ def agent_llm(
         raise AssertionError(f"unexpected LLM call for {call.schema}")
 
     return FakeLLMProvider(reply)
+
+
+M1_FIXTURE = Path(__file__).parent / "e2e" / "fixtures" / "m1_catalogue.json"
+
+
+def m1_catalogue() -> Catalogue:
+    """The 10 M1 schemes (all `provisional`) with their v1 draft rules, as exported 2026-10-18."""
+    data = json.loads(M1_FIXTURE.read_text(encoding="utf-8"))
+    rules = {r["scheme_id"]: SchemeRule.model_validate(r) for r in data["rules"]}
+    return Catalogue.of(
+        SchemeInfo(
+            id=s["id"],
+            name_en=s["name_en"],
+            name_hi=s["name_hi"],
+            name_mr=s["name_mr"],
+            aliases=tuple(s["aliases"]),
+            level=SchemeLevel(s["level"]),
+            state=s["state"],
+            status=SchemeStatus(s["status"]),
+            benefits=s["benefits"],
+            official_url=s["application_url"] or s["source_url"],
+            last_verified_at=datetime.fromisoformat(s["last_verified_at"]),
+            rule=rules.get(s["id"]),
+        )
+        for s in data["schemes"]
+    )

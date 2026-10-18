@@ -155,11 +155,11 @@
 | ID | Task | Owner | Depends | Status | Notes |
 |---|---|---|---|---|---|
 | M4-T01 | `AgentState` (TRD §10) and graph skeleton with the Postgres checkpointer. | CC | M2, M3 | `DONE` | `AgentState` + runtime-context deps (catalogue, passage search, LLM); checkpointer tables from Alembic 0003, strict deserialisation allowlist, `durability="exit"`; 15 unit + 3 Postgres tests (see D-032). 83a1431 |
-| M4-T02 | `classify_intent` node (structured output; language detection/confirmation). | CC | M4-T01 | `IN_PROGRESS` | |
-| M4-T03 | `extract_profile` node: merges new facts into `UserProfile` with `FieldSource`; flags contradictions. | CC | M4-T01 | `IN_PROGRESS` | |
-| M4-T04 | `shortlist_schemes` node: state filter + hybrid retrieval on stated need; excludes discontinued/archived. | CC | M4-T01 | `TODO` | |
-| M4-T05 | `check_eligibility` node wrapping the rule engine. | CC | M4-T01 | `TODO` | |
-| M4-T06 | `filter_results` node (basic version: only `ELIGIBLE` shown; `NOT_ELIGIBLE` and `NEEDS_INFO` hidden). Extended with documents and windows in M10. | CC | M4-T05 | `TODO` | |
+| M4-T02 | `classify_intent` node (structured output; language detection/confirmation). | CC | M4-T01 | `DONE` | One structured call (`turn_understanding@v1`): intent, language (kept for word-less messages), facts, declined fields, scheme names, English search text; user text escaped; 6 tests (see D-033). 19ce4a8 |
+| M4-T03 | `extract_profile` node: merges new facts into `UserProfile` with `FieldSource`; flags contradictions. | CC | M4-T01 | `DONE` | Deterministic merge: typed parsing + `UserProfile` validation, `FieldSource`, contradictions confirmed instead of overwritten, declined fields, sensitive facts only with consent; 27 tests (see D-033). 19ce4a8 |
+| M4-T04 | `shortlist_schemes` node: state filter + hybrid retrieval on stated need; excludes discontinued/archived. | CC | M4-T01 | `IN_PROGRESS` | |
+| M4-T05 | `check_eligibility` node wrapping the rule engine. | CC | M4-T01 | `IN_PROGRESS` | |
+| M4-T06 | `filter_results` node (basic version: only `ELIGIBLE` shown; `NOT_ELIGIBLE` and `NEEDS_INFO` hidden). Extended with documents and windows in M10. | CC | M4-T05 | `IN_PROGRESS` | |
 | M4-T07 | `plan_question` node: uses the planner; phrases the question naturally in the user's language. | CC | M4-T06 | `TODO` | |
 | M4-T08 | `retrieve_evidence` and `compose_response` nodes: simple language, citations with `chunk_id`, last-verified date. | CC | M4-T06 | `TODO` | |
 | M4-T09 | Guardrails: response post-check against `display_results` (regenerate once, then template fallback); citation enforcement; prompt-injection-safe context wrapping. | CC | M4-T08 | `TODO` | |

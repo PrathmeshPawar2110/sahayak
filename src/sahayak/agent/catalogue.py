@@ -12,6 +12,7 @@ make sure a reply names no scheme it may not (TRD §10 guardrails).
 """
 
 import re
+import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable, Iterator
 from contextlib import AbstractAsyncContextManager
@@ -178,13 +179,35 @@ class StaticCatalogueSource(CatalogueSource):
 
 
 class DbCatalogueSource(CatalogueSource):
-    """Schemes and their rules from Postgres. Archived schemes are left out."""
+    """Schemes and their rules from Postgres. Archived schemes are left out.
 
-    def __init__(self, sessions: SessionScope, *, show_provisional: bool) -> None:
+    Several nodes read the catalogue in each turn, and it changes rarely (ingestion, rule
+    approval, discovery), so a loaded catalogue is reused for `ttl_sec` seconds.
+    """
+
+    def __init__(
+        self,
+        sessions: SessionScope,
+        *,
+        show_provisional: bool,
+        ttl_sec: float = 60.0,
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> None:
         self._sessions = sessions
         self._show_provisional = show_provisional
+        self._ttl_sec = ttl_sec
+        self._monotonic = monotonic
+        self._cached: tuple[float, Catalogue] | None = None
 
     async def load(self) -> Catalogue:
+        now = self._monotonic()
+        if self._cached is not None and now - self._cached[0] < self._ttl_sec:
+            return self._cached[1]
+        catalogue = await self._load()
+        self._cached = (now, catalogue)
+        return catalogue
+
+    async def _load(self) -> Catalogue:
         async with self._sessions() as session:
             schemes = (
                 await session.scalars(
