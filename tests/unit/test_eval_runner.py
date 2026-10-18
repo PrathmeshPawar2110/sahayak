@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -118,11 +119,16 @@ def invoke(tmp_path: Path, rules: dict[str, SchemeRule], *extra: str) -> Any:
     return runner.invoke(app, args)
 
 
+def compact(output: str) -> str:
+    """CLI output without colour codes, whitespace or box edges (rich may wrap lines in CI)."""
+    return re.sub(r"\x1b\[[0-9;]*m|[\s│]", "", output)
+
+
 def test_eval_command_fails_below_the_target(tmp_path: Path) -> None:
     result = invoke(tmp_path, {"apy": adult_rule()})
 
     assert result.exit_code == 1, result.output
-    assert "below 90%" in result.output
+    assert "isbelow90%" in compact(result.output)
     (report,) = (tmp_path / "reports").glob("*-eligibility.md")
     assert "**Result:** FAIL" in report.read_text(encoding="utf-8")
 
@@ -137,11 +143,11 @@ def test_eval_command_without_rules_does_not_fail(tmp_path: Path) -> None:
     result = invoke(tmp_path, {})
 
     assert result.exit_code == 0, result.output
-    assert "nothing was scored" in result.output
+    assert "nothingwasscored" in compact(result.output)
 
 
 def test_previewing_drafts_cannot_be_recorded() -> None:
     result = runner.invoke(app, ["eval", "--rules", "latest"])
 
     assert result.exit_code == 2
-    assert "--no-record" in result.output
+    assert "add--no-record" in compact(result.output)
