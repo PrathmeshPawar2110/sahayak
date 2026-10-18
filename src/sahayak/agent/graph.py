@@ -37,8 +37,22 @@ from sahayak.agent.nodes.retrieve_evidence import retrieve_evidence
 from sahayak.agent.nodes.shortlist_schemes import shortlist_schemes
 from sahayak.agent.questions import should_ask
 from sahayak.agent.state import AgentState
+from sahayak.agent.tracing import Node, traced_node
 
 type AgentGraph = CompiledStateGraph[AgentState, AgentDeps, AgentState, AgentState]
+
+NODES: dict[str, Node] = {
+    "load_user_context": load_user_context,
+    "classify_intent": classify_intent,
+    "extract_profile": extract_profile,
+    "shortlist_schemes": shortlist_schemes,
+    "check_eligibility": check_eligibility,
+    "filter_results": filter_results,
+    "plan_question": plan_question,
+    "retrieve_evidence": retrieve_evidence,
+    "compose_response": compose_response,
+    "handle_reset": handle_reset,
+}
 
 PROFILE_INTENTS = frozenset({"discover", "ask_scheme_info", "select_scheme", "get_form"})
 
@@ -60,16 +74,8 @@ def build_graph(checkpointer: BaseCheckpointSaver[Any] | None = None) -> AgentGr
     graph = StateGraph(
         AgentState, context_schema=AgentDeps, input_schema=AgentState, output_schema=AgentState
     )
-    graph.add_node("load_user_context", load_user_context)
-    graph.add_node("classify_intent", classify_intent)
-    graph.add_node("extract_profile", extract_profile)
-    graph.add_node("shortlist_schemes", shortlist_schemes)
-    graph.add_node("check_eligibility", check_eligibility)
-    graph.add_node("filter_results", filter_results)
-    graph.add_node("plan_question", plan_question)
-    graph.add_node("retrieve_evidence", retrieve_evidence)
-    graph.add_node("compose_response", compose_response)
-    graph.add_node("handle_reset", handle_reset)
+    for name, node in NODES.items():
+        graph.add_node(name, traced_node(name, node))
 
     graph.add_edge(START, "load_user_context")
     graph.add_edge("load_user_context", "classify_intent")

@@ -478,3 +478,17 @@ Record one entry per decision, newest last. Reference them from `IMPLEMENTATION.
   - **Embedding cache fails open.** The Redis embedding cache (M1) now computes vectors directly when Redis is unreachable, so a cache outage costs latency instead of failing every turn.
 - **Alternatives considered:** a 503 for LLM failures (clients, and WhatsApp later, would each need their own error wording); a fixed 30-day expiry from creation (an active conversation would expire mid-use); a Postgres advisory lock (the row lock already exists and is released with the transaction).
 - **Consequences:** A turn holds a database connection and a row lock for its whole duration (a few seconds), which caps concurrent turns at the pool size (5 + 10 overflow). That is acceptable for the MVP; M12's load test will show whether the pool needs to grow. On Windows, run the dev server with `--reload` (`just dev`): uvicorn then uses the selector event loop that psycopg needs.
+
+## D-039 — Per-node tracing: latency, tokens and cost
+
+- **Date:** 2026-10-18
+- **Task:** M4-T14
+- **Status:** accepted
+- **Context:** TRD §5 asks for OpenTelemetry traces and structured logs covering every LangGraph node and LLM call, with latency, tokens and cost. LLM calls happen deep inside nodes, and nodes run in LangGraph's own tasks.
+- **Decision:**
+  - **Spans.** Every node runs inside a span `agent.<node>` (via a wrapper applied when the graph is built), and a turn inside `agent.turn`. The existing `llm.complete` / `llm.structured` spans nest under them. Span attributes: node name, latency, LLM calls, input and output tokens and cost.
+  - **Logs.** Each node logs `agent_node` (node, status, latency, LLM calls, tokens, cost) and each turn `agent_turn` (intent, language, reply kind, guard outcome, number of schemes shown, number of identifiers masked, latency, LLM totals). Neither ever carries message text or profile values; a test checks that a name in the message appears in no log event or span attribute.
+  - **Usage meters.** `metered()` opens a meter in a context variable; every successful LLM call adds its tokens and cost to every open meter, so a node's meter and its turn's meter both count it, across LangGraph's tasks. The turn's totals are also returned to the caller (the dialogue eval reports them).
+  - **Cost** uses list prices per million tokens, matched by the longest prefix of the model name the API returns: gpt-4o $2.50 / $10.00, gpt-4o-mini $0.15 / $0.60 (OpenAI standard processing). A model without a listed price makes the cost unknown (null), never zero.
+- **Alternatives considered:** LangSmith or Langfuse callbacks (another vendor and account; TRD §7 makes Langfuse optional); estimating cost per node from token counts afterwards (needs the model per call, which only the provider knows).
+- **Consequences:** Prices must be updated by hand when a model or its price changes. Claude models have no price yet, so with `LLM_PROVIDER=anthropic` costs are logged as unknown until one is added. Retries count once, with the tokens of the call that succeeded.

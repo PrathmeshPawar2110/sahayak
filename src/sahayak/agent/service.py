@@ -9,7 +9,7 @@ polite error reply (NFR Reliability).
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any, cast
 
@@ -17,6 +17,7 @@ import structlog
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import BaseCheckpointSaver
+from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sahayak.agent.catalogue import Catalogue, DbCatalogueSource
@@ -38,11 +39,13 @@ from sahayak.config import Settings
 from sahayak.eligibility.profile import Language, UserProfile
 from sahayak.llm.base import LLMError
 from sahayak.llm.factory import LLMConfigError, create_llm_provider
+from sahayak.observability.usage import UsageMeter, metered
 from sahayak.privacy.pii import mask_pii
 from sahayak.rag.embeddings import EmbeddingError, create_embedding_provider
 from sahayak.rag.retriever import HybridRetriever
 
 log = structlog.get_logger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 @dataclass(frozen=True)
@@ -70,6 +73,7 @@ class TurnResult:
     scheme_names: dict[str, str] = field(default_factory=dict)  # for citations
     pii_found: list[str] = field(default_factory=list)
     latency_ms: int = 0
+    usage: UsageMeter = field(default_factory=UsageMeter)  # LLM calls, tokens, cost
 
     @property
     def deletes_session(self) -> bool:
@@ -113,6 +117,38 @@ class AgentService:
         return {"configurable": {"thread_id": session_id}}
 
     async def run_turn(
+        self,
+        session_id: str,
+        text: str,
+        *,
+        language: Language,
+        consents: list[ConsentPurpose],
+    ) -> TurnResult:
+        """One turn: the reply, the strict results and what it cost. Logs an `agent_turn` event
+        (counts and timings only, never text)."""
+        with tracer.start_as_current_span("agent.turn") as span, metered() as usage:
+            result = await self._run(session_id, text, language=language, consents=consents)
+            fields = usage.fields()
+            span.set_attribute("agent.latency_ms", result.latency_ms)
+            for key, value in fields.items():
+                if value is not None:
+                    span.set_attribute(f"agent.{key}", value)
+        result = replace(result, usage=usage)
+        shown = len(result.ready) + len(result.action_needed) + len(result.provisional)
+        log.info(
+            "agent_turn",
+            intent=result.intent,
+            language=result.language,
+            kind=result.reply.kind,
+            guard=result.reply.guard,
+            schemes_shown=shown,
+            pii_masked=len(result.pii_found),
+            latency_ms=result.latency_ms,
+            **fields,
+        )
+        return result
+
+    async def _run(
         self,
         session_id: str,
         text: str,
