@@ -27,12 +27,13 @@ from sahayak.agent.state import (
     PendingQuestion,
     TurnUnderstanding,
 )
-from sahayak.eligibility.engine import EligibilityResult
+from sahayak.eligibility.engine import EligibilityResult, Verdict
 from sahayak.eligibility.profile import UserProfile
 
-# Every Pydantic model stored directly as an `AgentState` value (or as an item of one). Nested
-# models are saved as plain dicts by `model_dump()` and rebuilt by their parent's validation.
-STATE_TYPES: tuple[type[BaseModel], ...] = (
+# Every Pydantic model stored directly as an `AgentState` value (or as an item of one), and the
+# enums inside them: `model_dump()` turns nested models into dicts but keeps enum members, which
+# are saved by class name.
+STATE_TYPES: tuple[type[BaseModel] | type[Verdict], ...] = (
     AgentReply,
     Contradiction,
     DisplayResults,
@@ -42,6 +43,7 @@ STATE_TYPES: tuple[type[BaseModel], ...] = (
     PendingQuestion,
     TurnUnderstanding,
     UserProfile,
+    Verdict,
 )
 
 # Number of `AsyncPostgresSaver.MIGRATIONS` that Alembic revision 0003 applies. A test fails when

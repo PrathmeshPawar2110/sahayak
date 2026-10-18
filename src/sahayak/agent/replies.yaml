@@ -248,9 +248,9 @@ messages:
     hi: "आपने जो बताया उसके आधार पर, आप इन योजनाओं के लिए पात्र हो सकते हैं:"
     mr: "तुम्ही दिलेल्या माहितीनुसार, तुम्ही या योजनांसाठी पात्र असू शकता:"
   provisional_intro:
-    en: "Not yet verified, but you may also qualify for:"
-    hi: "अभी सत्यापित नहीं, पर आप इनके लिए भी पात्र हो सकते हैं:"
-    mr: "अजून पडताळलेले नाही, पण तुम्ही यांसाठीही पात्र असू शकता:"
+    en: "Not yet verified, but you may qualify for:"
+    hi: "अभी सत्यापित नहीं, पर आप इनके लिए पात्र हो सकते हैं:"
+    mr: "अजून पडताळलेले नाही, पण तुम्ही यांसाठी पात्र असू शकता:"
   no_results:
     en: With the details you have shared so far, I could not find a scheme you qualify for yet.
     hi: अब तक आपने जो जानकारी दी है, उसके आधार पर मुझे अभी कोई ऐसी योजना नहीं मिली जिसके लिए आप पात्र हों।

@@ -128,7 +128,7 @@ def test_render_numbers_citations_adds_caveats_and_sources() -> None:
 def test_template_lists_only_displayed_schemes_on_discover() -> None:
     text = template_reply(_facts(["farm-aid"]), results=True, language="en")
     assert "Old Age Pension (last verified 17-10-2026)" in text
-    assert "Not yet verified, but you may also qualify for:\n• New Housing Mission" in text
+    assert "Not yet verified, but you may qualify for:\n• New Housing Mission" in text
     assert "Farm Aid Scheme (FAS): based on what you told me, you are not eligible." in text
     assert CATALOGUE.mentions(text) == ["old-pension", "new-housing", "farm-aid"]
 

@@ -1,4 +1,5 @@
-"""`sahayak eval --suite eligibility|retrieval|all`: score the rule engine and the retriever."""
+"""`sahayak eval --suite eligibility|retrieval|dialogues|all`: score the rule engine, the
+retriever and whole conversations with the agent."""
 
 import asyncio
 import os
@@ -9,8 +10,15 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from langgraph.checkpoint.memory import InMemorySaver
 from rich.console import Console
 
+from sahayak.agent.catalogue import DbCatalogueSource
+from sahayak.agent.checkpoint import checkpoint_serializer
+from sahayak.agent.deps import AgentConfig, AgentDeps
+from sahayak.agent.graph import build_graph
+from sahayak.agent.passages import RetrieverPassageSearch
+from sahayak.agent.service import AgentService
 from sahayak.config import Settings, get_settings
 from sahayak.db.session import create_engine, create_session_factory
 from sahayak.eligibility.store import (
@@ -19,6 +27,7 @@ from sahayak.eligibility.store import (
     load_latest_rules,
     load_rule_files,
 )
+from sahayak.evals import dialogues as dialogues_eval
 from sahayak.evals import retrieval as retrieval_eval
 from sahayak.evals.dataset import PROFILES_PATH, load_profiles
 from sahayak.evals.eligibility import (
@@ -40,7 +49,13 @@ console = Console()
 class Suite(StrEnum):
     ELIGIBILITY = "eligibility"
     RETRIEVAL = "retrieval"  # needs the ingested index and the embedding model
+    DIALOGUES = "dialogues"  # needs the index, the embedding model and the LLM (paid calls)
     ALL = "all"  # every suite
+
+
+class SimulatedUserKind(StrEnum):
+    LLM = "llm"  # plays each persona in natural hi/mr/en (paid calls)
+    SCRIPTED = "scripted"  # states facts as field=value
 
 
 class RulesSource(StrEnum):
@@ -71,6 +86,15 @@ def eval_command(
     translate: Annotated[
         bool, typer.Option(help="Also search Hindi/Marathi queries in English (calls the LLM).")
     ] = True,
+    dialogues: Annotated[
+        Path, typer.Option(help="Scripted dialogues (JSONL).")
+    ] = dialogues_eval.DIALOGUES_PATH,
+    user: Annotated[
+        SimulatedUserKind, typer.Option(help="Who plays the citizen in the dialogues.")
+    ] = SimulatedUserKind.LLM,
+    limit: Annotated[
+        int | None, typer.Option(min=1, help="Run only the first N dialogues.")
+    ] = None,
     record: Annotated[
         bool, typer.Option(help="Save the metrics as an eval_runs row (needs DATABASE_URL).")
     ] = True,
@@ -101,6 +125,17 @@ def eval_command(
             report_dir=report_dir,
             min_recall=min_recall,
             translate=translate,
+            record=record,
+            git_sha=git_sha,
+        )
+    if suite in (Suite.DIALOGUES, Suite.ALL):
+        passed &= _dialogues(
+            settings,
+            dialogues_path=dialogues,
+            dataset=dataset,
+            user=user,
+            limit=limit,
+            report_dir=report_dir,
             record=record,
             git_sha=git_sha,
         )
@@ -211,6 +246,87 @@ def _retrieval(
         console.print("[yellow]No retrieval queries: nothing was scored.[/yellow]")
     elif recall < min_recall:
         console.print(f"[red]recall@{result.k} {recall:.3f} is below {min_recall:.2f}.[/red]")
+        return False
+    return True
+
+
+def _dialogues(
+    settings: Settings,
+    *,
+    dialogues_path: Path,
+    dataset: Path,
+    user: SimulatedUserKind,
+    limit: int | None,
+    report_dir: Path,
+    record: bool,
+    git_sha: str | None,
+) -> bool:
+    """The agent as the API runs it (catalogue and passages from the database, the configured
+    LLM), talking to a simulated user. Fails if any reply named a scheme it shouldn't."""
+    loaded = dialogues_eval.load_dialogues(dialogues_path)[:limit]
+    personas = {profile.id: profile for profile in load_profiles(dataset)}
+    try:
+        llm = create_llm_provider(settings)
+    except LLMConfigError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    def progress(result: dialogues_eval.DialogueResult) -> None:
+        status = "ok" if result.exact else "differs"
+        console.print(
+            f"{result.dialogue.id} {result.dialogue.language}: shown "
+            f"{sorted(result.shown)}, {result.questions} questions, {status}"
+            + (f", {result.error}" if result.error else ""),
+            markup=False,
+        )
+
+    async def run() -> dialogues_eval.DialogueEval:
+        engine = create_engine(settings)
+        sessions = create_session_factory(engine)
+        try:
+            deps = AgentDeps(
+                llm=llm,
+                catalogue=DbCatalogueSource(
+                    sessions, show_provisional=settings.show_provisional_schemes
+                ),
+                passages=RetrieverPassageSearch(
+                    sessions, HybridRetriever(create_embedding_provider(settings))
+                ),
+                config=AgentConfig(
+                    max_questions=settings.max_questions_per_session,
+                    show_provisional=settings.show_provisional_schemes,
+                ),
+            )
+            service = AgentService(build_graph(InMemorySaver(serde=checkpoint_serializer())), deps)
+            simulated: dialogues_eval.SimulatedUser = (
+                dialogues_eval.LLMSimulatedUser(llm)
+                if user is SimulatedUserKind.LLM
+                else dialogues_eval.ScriptedUser()
+            )
+            result = await dialogues_eval.run_dialogue_eval(
+                service,
+                simulated,
+                loaded,
+                personas,
+                await deps.catalogue.load(),
+                agent_model=llm.model,
+                on_result=progress,
+            )
+            if record:
+                async with sessions() as session:
+                    config = dialogues_eval.run_config(result, dataset=dialogues_path)
+                    await dialogues_eval.record_run(session, result, git_sha=git_sha, config=config)
+                    await session.commit()
+            return result
+        finally:
+            await engine.dispose()
+
+    result = asyncio.run(run())
+    generated_at = f"{datetime.now(UTC):%Y-%m-%d}"
+    report = dialogues_eval.render_report(result, git_sha=git_sha, generated_at=generated_at)
+    _write_report(report_dir, "dialogues", report)
+    metrics = result.metrics()
+    if metrics.get("violations"):
+        console.print(f"[red]{metrics['violations']} replies named schemes they shouldn't.[/red]")
         return False
     return True
 

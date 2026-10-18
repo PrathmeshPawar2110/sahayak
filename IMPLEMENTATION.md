@@ -166,8 +166,8 @@
 | M4-T10 | PII detectors (Aadhaar-like, bank account, OTP, phone) used before logging and before saving profile; polite "not needed" reply. | CC | M4-T03 | `DONE` | `privacy/pii.py`: Aadhaar-like, bank account (9-18 digits or grouped near an account word), OTP (near OTP/password words), phone; Devanagari digits; last 4 kept; used by log redaction and `extract_profile`; "not needed" notice on replies; 31 tests (see D-037). 7e09136 |
 | M4-T11 | `handle_reset` node and graph edges per TRD §10. | CC | M4-T09 | `DONE` | `handle_reset` clears profile, tracking and stored messages (delete also ends the session in the API); every intent routed, later features get fixed replies; 17 graph tests. 8078973 |
 | M4-T12 | API: `POST /v1/sessions`, `/consent`, `/messages`, `GET /profile`, `DELETE /sessions/{id}`, `GET /v1/schemes[/{id}]`. | CC | M4-T11 | `DONE` | Sessions, consent (profile/sensitive; withdrawal erases), messages (row-locked turn, PII masked first, messages + profile saved, sliding 30-day expiry, polite error reply on LLM failure), profile, delete (incl. checkpoints), schemes list/detail; embedding cache fails open; 21 Postgres tests (see D-038). 3513efc |
-| M4-T13 | Simulated-user harness (LLM plays a fixed profile) + ~30 scripted dialogues in hi/mr/en; metrics: final accuracy, questions asked, turns. | CC | M4-T12 | `TODO` | |
-| M4-T14 | Per-node tracing (latency, tokens, cost) visible in logs/traces. | CC | M4-T12 | `IN_PROGRESS` | |
+| M4-T13 | Simulated-user harness (LLM plays a fixed profile) + ~30 scripted dialogues in hi/mr/en; metrics: final accuracy, questions asked, turns. | CC | M4-T12 | `IN_PROGRESS` | |
+| M4-T14 | Per-node tracing (latency, tokens, cost) visible in logs/traces. | CC | M4-T12 | `DONE` | `agent.<node>` and `agent.turn` spans; `agent_node` / `agent_turn` logs with latency, LLM calls, tokens and cost (list prices by model prefix); no text in logs or spans; 7 tests (see D-039). a360eb0 |
 
 **Exit criteria**
 - [ ] Full text conversation works end to end in hi, mr and en.
