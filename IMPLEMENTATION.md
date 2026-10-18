@@ -122,12 +122,12 @@
 | M2-T05 | Question planner: greedy choice of the missing field that appears in the most `NEEDS_INFO` rules; respects max 8 questions; never asks for known fields. | CC | M2-T03 | `DONE` | Greedy `next_question`: most NEEDS_INFO schemes, non-sensitive first on ties, skips known/declined fields, stops at 8; 9 tests (see D-027). 51bedab |
 | M2-T06 | Unit tests with **≥ 95% coverage** of `eligibility/` (property-based tests with Hypothesis for the evaluator). | CC | M2-T05 | `DONE` | `eligibility/` at 100% (unit + integration; 97% unit-only); CI fails below 95%. c37f629 |
 | M2-T07 | Eval set v0: profile generator + first **30 profiles** in `evals/profiles.jsonl` with expected verdicts for the 10 schemes. | CC | M2-T03 | `DONE` | 30 profiles labelled for all 10 schemes by an independent plain-Python reference (boundaries, missing fields; reasons per label); 16 tests (see D-028). 6b82bd1 |
-| M2-T08 | Hand-check the 30 eval labels. | HUMAN | M2-T07 | `TODO` | Waiting on Prathmesh: check `reasons` in `evals/profiles.jsonl`, fix labels in place, set `label_status` to `checked`. Judgement calls listed in D-028. |
+| M2-T08 | Hand-check the 30 eval labels. | HUMAN | M2-T07 | `DONE` | Approved by Prathmesh on 2026-10-18 without changes, including the D-028 judgement calls; all 30 profiles are `label_status: checked`. |
 | M2-T09 | `sahayak eval --suite eligibility` runner → Markdown report + `eval_runs` row; add to CI. | CC | M2-T07 | `DONE` | Report (accuracy, confusion matrix, per-scheme P/R/F1, mismatches) + `eval_runs` row; exits 1 below 90%; CI `eval` job on the committed rule snapshot; 9 unit + 1 Postgres test. d7122bd |
 
 **Exit criteria**
 - [x] ≥ 95% coverage on `eligibility/`. *2026-10-17: 100% with unit + Postgres integration tests (97% unit-only); CI gates at 95%.*
-- [ ] Eligibility eval ≥ 90% accuracy on approved rules, running in CI. *The eval runs in CI (new `eval` job, checked locally against a fresh migrated database), but there are no approved rules yet (M1-T14), so CI reports "nothing scored". Preview against the 10 M1 drafts: 97.7% (293/300); every mismatch is a draft mistake that review should fix (D-028). To finish: approve rules (M1-T14), `sahayak rules export`, commit `data/rules/`, and hand-check labels (M2-T08).*
+- [ ] Eligibility eval ≥ 90% accuracy on approved rules, running in CI. *The eval runs in CI (new `eval` job, checked locally against a fresh migrated database), but there are no approved rules yet (M1-T14), so CI reports "nothing scored". Preview against the 10 M1 drafts: 97.7% (293/300); every mismatch is a draft mistake that review should fix (D-028). Labels hand-checked (M2-T08, 2026-10-18). To finish: approve rules (M1-T14), `sahayak rules export`, commit `data/rules/`.*
 
 ---
 
@@ -418,7 +418,6 @@ Claude Code lists here every HUMAN task that is currently blocking progress.
 | Task ID | What's needed | Blocking | Date raised |
 |---|---|---|---|
 | M1-T14 | Review and approve the 10 draft rules (`sahayak rules review <id>`), then `sahayak rules export` and commit `data/rules/` | M2 exit criterion: eval on approved rules in CI | 2026-10-17 |
-| M2-T08 | Hand-check the 30 eval labels in `evals/profiles.jsonl` (see D-028) | M2 exit criterion | 2026-10-17 |
 
 ---
 
