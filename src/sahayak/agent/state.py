@@ -71,17 +71,21 @@ class PendingQuestion(_Model):
     """What the agent asked at the end of the previous turn."""
 
     field: str
-    kind: Literal["ask", "confirm"]  # ask for a missing value, or confirm a contradiction
+    # ask for a missing value, confirm a contradiction, or confirm what was heard in unclear audio
+    kind: Literal["ask", "confirm", "confirm_heard"]
 
 
 class Contradiction(_Model):
-    """A new answer that disagrees with a known value (FR-14). The known value stays until the
-    user confirms which one is right."""
+    """A value to confirm before it is saved (FR-14): a new answer that disagrees with a known
+    value (the known value stays until the user says which is right), or a value read from a
+    voice message the speech-to-text was unsure about (`unclear_audio`, with what was heard)."""
 
     field: str
-    current: FieldValue
+    current: FieldValue | None
     new: FieldValue
     asked: bool = False
+    reason: Literal["contradiction", "unclear_audio"] = "contradiction"
+    heard: str | None = None  # the transcript, for `unclear_audio`
 
 
 class EvidenceChunk(_Model):
@@ -178,4 +182,5 @@ class AgentState(TypedDict, total=False):
     understanding: TurnUnderstanding | None
     named_schemes: list[str]
     pii_found: list[str]  # kinds of PII masked out of the user's message
+    asr_confidence: float | None  # speech-to-text confidence for a voice message, if known
     reply: AgentReply | None

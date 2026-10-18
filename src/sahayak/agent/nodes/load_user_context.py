@@ -30,6 +30,7 @@ async def load_user_context(state: AgentState, runtime: Runtime[AgentDeps]) -> A
         "focus_schemes": state.get("focus_schemes", []),
         "consents": state.get("consents", []),
         "pii_found": state.get("pii_found", []),
+        "asr_confidence": state.get("asr_confidence"),
         # Anonymous until M10 adds accounts and the document vault.
         "user_id": None,
         "member_id": None,

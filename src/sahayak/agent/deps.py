@@ -26,6 +26,7 @@ class AgentConfig:
     evidence_schemes: int = 5  # schemes a reply cites evidence for
     evidence_passages: int = 6  # passages per reply, shared between its schemes
     evidence_per_scheme: int = 2  # at least this many per scheme
+    asr_confirm_threshold: float = 0.6  # ASR_CONFIRM_THRESHOLD (FR-14)
 
 
 @dataclass(frozen=True)
