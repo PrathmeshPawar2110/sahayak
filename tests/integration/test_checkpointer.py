@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from sahayak.agent.checkpoint import CHECKPOINT_MIGRATIONS, postgres_checkpointer
 from sahayak.agent.graph import build_graph
 from sahayak.agent.state import AgentState
-from tests.agent_support import make_deps
+from tests.agent_support import agent_llm, make_deps
 
 
 async def _turn(database_url: str, thread_id: str) -> AgentState:
@@ -17,7 +17,7 @@ async def _turn(database_url: str, thread_id: str) -> AgentState:
         state = await graph.ainvoke(
             {"session_id": thread_id, "messages": [HumanMessage("नमस्ते")]},
             {"configurable": {"thread_id": thread_id}},
-            context=make_deps(),
+            context=make_deps(agent_llm()),
             durability="exit",
         )
         return cast(AgentState, state)

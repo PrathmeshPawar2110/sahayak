@@ -154,9 +154,9 @@
 
 | ID | Task | Owner | Depends | Status | Notes |
 |---|---|---|---|---|---|
-| M4-T01 | `AgentState` (TRD §10) and graph skeleton with the Postgres checkpointer. | CC | M2, M3 | `IN_PROGRESS` | |
-| M4-T02 | `classify_intent` node (structured output; language detection/confirmation). | CC | M4-T01 | `TODO` | |
-| M4-T03 | `extract_profile` node: merges new facts into `UserProfile` with `FieldSource`; flags contradictions. | CC | M4-T01 | `TODO` | |
+| M4-T01 | `AgentState` (TRD §10) and graph skeleton with the Postgres checkpointer. | CC | M2, M3 | `DONE` | `AgentState` + runtime-context deps (catalogue, passage search, LLM); checkpointer tables from Alembic 0003, strict deserialisation allowlist, `durability="exit"`; 15 unit + 3 Postgres tests (see D-032). 83a1431 |
+| M4-T02 | `classify_intent` node (structured output; language detection/confirmation). | CC | M4-T01 | `IN_PROGRESS` | |
+| M4-T03 | `extract_profile` node: merges new facts into `UserProfile` with `FieldSource`; flags contradictions. | CC | M4-T01 | `IN_PROGRESS` | |
 | M4-T04 | `shortlist_schemes` node: state filter + hybrid retrieval on stated need; excludes discontinued/archived. | CC | M4-T01 | `TODO` | |
 | M4-T05 | `check_eligibility` node wrapping the rule engine. | CC | M4-T01 | `TODO` | |
 | M4-T06 | `filter_results` node (basic version: only `ELIGIBLE` shown; `NOT_ELIGIBLE` and `NEEDS_INFO` hidden). Extended with documents and windows in M10. | CC | M4-T05 | `TODO` | |

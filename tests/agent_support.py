@@ -1,17 +1,17 @@
 """Shared helpers for agent tests: a small catalogue, passages and deps, with no database."""
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
 from sahayak.agent.catalogue import Catalogue, SchemeInfo, StaticCatalogueSource
 from sahayak.agent.deps import AgentConfig, AgentDeps
 from sahayak.agent.passages import StaticPassageSearch
-from sahayak.agent.state import EvidenceChunk
+from sahayak.agent.state import EvidenceChunk, TurnUnderstanding
 from sahayak.db.models import SchemeLevel, SchemeStatus
 from sahayak.eligibility.rules import SchemeRule
 from sahayak.llm.base import LLMProvider
-from sahayak.llm.fake import FakeLLMProvider, Reply
+from sahayak.llm.fake import FakeCall, FakeLLMProvider, Reply
 
 VERIFIED = datetime(2026, 10, 17, 9, 0, tzinfo=UTC)
 NOW = datetime(2026, 10, 18, 12, 0, tzinfo=UTC)
@@ -128,3 +128,48 @@ def make_deps(
         config=config or AgentConfig(),
         clock=lambda: NOW,
     )
+
+
+def understood(
+    intent: str = "discover",
+    *,
+    language: str = "en",
+    facts: dict[str, str] | None = None,
+    declined: Sequence[str] = (),
+    schemes: Sequence[str] = (),
+    query: str = "",
+) -> dict[str, Any]:
+    """A `TurnUnderstanding` reply for the fake LLM."""
+    return {
+        "intent": intent,
+        "language": language,
+        "facts": [{"field": k, "value": v} for k, v in (facts or {}).items()],
+        "declined_fields": list(declined),
+        "scheme_names": list(schemes),
+        "search_query": query,
+    }
+
+
+Responder = Callable[[FakeCall], Reply]
+
+
+def agent_llm(
+    understandings: Sequence[dict[str, Any]] = (),
+    *,
+    others: dict[type, Responder] | None = None,
+) -> FakeLLMProvider:
+    """A fake LLM for the agent: turn-understanding replies in order, other schemas by responder.
+
+    With no understanding left, every turn reads as a bare "discover".
+    """
+    queue = list(understandings)
+    responders = others or {}
+
+    def reply(call: FakeCall) -> Reply:
+        if call.schema is TurnUnderstanding:
+            return queue.pop(0) if queue else understood()
+        if call.schema in responders:
+            return responders[call.schema](call)
+        raise AssertionError(f"unexpected LLM call for {call.schema}")
+
+    return FakeLLMProvider(reply)

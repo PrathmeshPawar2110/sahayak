@@ -19,6 +19,8 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.runtime import Runtime
 
 from sahayak.agent.deps import AgentDeps
+from sahayak.agent.nodes.classify_intent import classify_intent
+from sahayak.agent.nodes.extract_profile import extract_profile
 from sahayak.agent.nodes.load_user_context import load_user_context
 from sahayak.agent.state import AgentState
 
@@ -48,9 +50,9 @@ def build_graph(checkpointer: BaseCheckpointSaver[Any] | None = None) -> AgentGr
         AgentState, context_schema=AgentDeps, input_schema=AgentState, output_schema=AgentState
     )
     graph.add_node("load_user_context", load_user_context)
+    graph.add_node("classify_intent", classify_intent)
+    graph.add_node("extract_profile", extract_profile)
     for name in (
-        "classify_intent",
-        "extract_profile",
         "shortlist_schemes",
         "check_eligibility",
         "filter_results",

@@ -388,3 +388,19 @@ Record one entry per decision, newest last. Reference them from `IMPLEMENTATION.
   - **Own psycopg pool** (autocommit, dict rows, no prepared statements) next to the asyncpg engine. On Windows, psycopg's async mode needs the selector event loop, so the test suite (and the local dev server) sets `WindowsSelectorEventLoopPolicy`.
 - **Alternatives considered:** a custom checkpointer on asyncpg (more code to maintain than a second driver); calling `setup()` on API start (D-006); LangGraph's default permissive deserialisation (it executes whatever a checkpoint names).
 - **Consequences:** Checkpoints hold the profile, including sensitive fields, as JSON in Postgres. Column-level encryption of sensitive fields comes with M10-T10, and expired anonymous sessions (30 days) must be deleted together with their checkpoint thread (M12 retention job).
+
+## D-033 — One LLM call understands a turn; profile merging is deterministic
+
+- **Date:** 2026-10-18
+- **Task:** M4-T02, M4-T03
+- **Status:** accepted
+- **Context:** TRD §10 has two LLM steps before any eligibility work: `classify_intent` (intent, language) and `extract_profile` (structured profile facts). Each is a gpt-4o call of about a second, and a text turn should take about 2 s at p50 (TRD §5). Shortlisting and evidence retrieval also need English search text for Hindi and Marathi users (D-030), which would be a third call.
+- **Decision:**
+  - **One call.** `classify_intent` makes one structured call (prompt `turn_understanding@v1`) that returns the intent, the message's language, the profile facts stated, fields the user declined or doesn't know, scheme names mentioned, and an English search phrase. `extract_profile` merges the facts without an LLM.
+  - **Facts as text.** Each fact is a field name (an enum of the profile fields) and a value as text in a canonical form the prompt describes (digits, `true`/`false`, a listed choice, a state code; lakh and monthly amounts converted). The merge parses the text for the field's type and validates it with `UserProfile`. Invalid values are dropped, never guessed at.
+  - **Merge rules.** A value fills an unknown field and records `FieldSource(self_declared, confidence 1.0)`. A value that disagrees with a known one becomes a `Contradiction` the agent asks about (FR-14) and doesn't overwrite it. The answer to that confirmation is taken as given; without an answer, the known value stays. Declined fields are remembered so the planner doesn't ask them again (D-027).
+  - **Sensitive fields.** Without the session's `sensitive` consent, the prompt tells the model not to output caste, religion, minority or disability fields, and the merge drops any that come back anyway. The prompt also forbids inferring any value from names, writing style, language or location.
+  - **Language.** The detected language becomes the session's language, except for a message with no letters ("45"), which keeps the current one.
+  - **Untrusted text.** User messages (and later scheme passages) go into prompts inside tags with `<`, `>` and `&` escaped, so they can't close their tag, and every prompt says tag contents are data.
+- **Alternatives considered:** two calls, as listed in the TRD (about a second slower per turn, and the second call would need the first's output anyway); extraction with the planner's pending field only (misses volunteered facts, which make conversations shorter).
+- **Consequences:** The understanding prompt is long, since it carries the field catalogue (about 1,500 tokens, cacheable as a prefix). A wrong intent from this one call also affects extraction; the dialogue eval (M4-T13) measures the combined effect.

@@ -30,7 +30,7 @@ from sahayak.agent.state import (
 )
 from sahayak.eligibility.engine import evaluate
 from sahayak.eligibility.profile import FieldSource, UserProfile
-from tests.agent_support import FARMER, make_deps
+from tests.agent_support import FARMER, agent_llm, make_deps
 
 
 def _roundtrip(value: object) -> object:
@@ -130,7 +130,7 @@ def test_psycopg_conninfo_drops_the_sqlalchemy_driver() -> None:
 
 async def test_state_is_kept_per_session_thread() -> None:
     graph = build_graph(InMemorySaver(serde=checkpoint_serializer()))
-    deps = make_deps()
+    deps = make_deps(agent_llm())
 
     async def turn(thread: str) -> AgentState:
         config: RunnableConfig = {"configurable": {"thread_id": thread}}
