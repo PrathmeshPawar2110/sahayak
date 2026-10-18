@@ -143,6 +143,6 @@ async def test_state_is_kept_per_session_thread() -> None:
     second = await turn("a")
     other = await turn("b")
     assert second["turn_count"] == 2
-    assert len(second["messages"]) == 2
+    assert [m.type for m in second["messages"]] == ["human", "ai", "human", "ai"]
     assert other["turn_count"] == 1
     assert second["profile"] == UserProfile(language="en")

@@ -34,6 +34,12 @@ def message(key: str, language: Language, **values: str) -> str:
     return load_replies()["messages"][key][language].format(**values)
 
 
+def with_pii_notice(text: str, pii_found: list[str], language: Language) -> str:
+    """Start the reply with the polite "not needed" notice when PII was masked out of the
+    user's message (TRD §10)."""
+    return f"{message('pii_notice', language)}\n\n{text}" if pii_found else text
+
+
 def format_value(value: FieldValue, language: Language) -> str:
     """A profile value as a person would read it."""
     if isinstance(value, bool):

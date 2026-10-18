@@ -162,10 +162,22 @@ def agent_llm(
 ) -> FakeLLMProvider:
     """A fake LLM for the agent: turn-understanding replies in order, other schemas by responder.
 
-    With no understanding left, every turn reads as a bare "discover".
+    With no understanding left, every turn reads as a bare "discover". Question wording and
+    replies default to short fixed texts that pass the checks.
     """
+    from sahayak.agent.guardrails import ComposedReply
+    from sahayak.agent.nodes.plan_question import QuestionWording
+
     queue = list(understandings)
-    responders = others or {}
+    defaults: dict[type, Responder] = {
+        QuestionWording: lambda call: {"question": "Could you tell me more?"},
+        ComposedReply: lambda call: {
+            "opening": "Here is what I found.",
+            "points": [],
+            "closing": "",
+        },
+    }
+    responders = {**defaults, **(others or {})}
 
     def reply(call: FakeCall) -> Reply:
         if call.schema is TurnUnderstanding:

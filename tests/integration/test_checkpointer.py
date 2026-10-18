@@ -41,7 +41,9 @@ async def test_state_survives_a_new_checkpointer(database_url: str) -> None:
         await _turn(database_url, thread_id)
         second = await _turn(database_url, thread_id)  # a fresh pool and saver
         assert second["turn_count"] == 2
-        assert [m.content for m in second["messages"]] == ["नमस्ते", "नमस्ते"]
+        humans = [m.content for m in second["messages"] if m.type == "human"]
+        assert humans == ["नमस्ते", "नमस्ते"]
+        assert len(second["messages"]) == 4  # and two replies
     finally:
         async with postgres_checkpointer(database_url) as saver:
             await saver.adelete_thread(thread_id)

@@ -16,7 +16,13 @@ from sahayak.agent.catalogue import Catalogue
 from sahayak.agent.conversation import latest_user_text
 from sahayak.agent.deps import AgentDeps
 from sahayak.agent.questions import choose_question, contradiction_to_confirm
-from sahayak.agent.replies import LANGUAGE_NAMES, format_value, message, question
+from sahayak.agent.replies import (
+    LANGUAGE_NAMES,
+    format_value,
+    message,
+    question,
+    with_pii_notice,
+)
 from sahayak.agent.state import AgentReply, AgentState, PendingQuestion
 from sahayak.agent.untrusted import as_data
 from sahayak.eligibility.fields import PROFILE_FIELDS
@@ -94,6 +100,7 @@ async def plan_question(state: AgentState, runtime: Runtime[AgentDeps]) -> Agent
         catalogue = await deps.catalogue.load()
         text = await word_question(deps, catalogue, planned, language, latest_user_text(state))
         pending = PendingQuestion(field=planned.field, kind="ask")
+    text = with_pii_notice(text, state.get("pii_found", []), language)
     reply = AgentReply(text=text, kind="question", question_field=pending.field)
     return {
         **update,

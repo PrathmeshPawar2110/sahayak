@@ -22,7 +22,7 @@ from sahayak.agent.guardrails import (
     scheme_facts,
     template_reply,
 )
-from sahayak.agent.replies import LANGUAGE_NAMES, message
+from sahayak.agent.replies import LANGUAGE_NAMES, message, with_pii_notice
 from sahayak.agent.state import AgentReply, AgentState, Citation, EvidenceChunk, GuardOutcome
 from sahayak.agent.untrusted import as_attribute, as_data
 from sahayak.eligibility.profile import Language
@@ -156,5 +156,6 @@ async def compose_response(state: AgentState, runtime: Runtime[AgentDeps]) -> Ag
         text, citations, guard = await compose(deps, state, catalogue)
         if intent == "get_form":
             text = f"{text}\n\n{message('form_not_available', language)}"
+    text = with_pii_notice(text, state.get("pii_found", []), language)
     reply = AgentReply(text=text, kind="answer", citations=citations, guard=guard)
     return {"reply": reply, "pending_question": None, "messages": [AIMessage(text)]}

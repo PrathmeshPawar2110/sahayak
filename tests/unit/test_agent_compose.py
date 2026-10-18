@@ -256,3 +256,10 @@ async def test_evidence_without_a_query_uses_the_scheme_name() -> None:
         Runtime(context=make_deps()),
     )
     assert {c.scheme_id for c in update["retrieved_context"]} == {"farm-aid"}
+
+
+async def test_replies_say_identifiers_are_not_needed() -> None:
+    update = await _compose(make_deps(agent_llm()), _state("smalltalk", pii_found=["aadhaar"]))
+    assert update["reply"] is not None
+    assert update["reply"].text.startswith("Please don't share Aadhaar, bank account, OTP")
+    assert update["reply"].text.endswith("ask about a scheme.")

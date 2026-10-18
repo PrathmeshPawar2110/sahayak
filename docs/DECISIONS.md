@@ -448,3 +448,16 @@ Record one entry per decision, newest last. Reference them from `IMPLEMENTATION.
   - **Fixed replies.** Greetings, out-of-scope messages and features that arrive later (documents in M10, reminders in M11) get fixed replies without an LLM call. Form requests (M7) get the scheme's details plus "forms are coming soon".
 - **Alternatives considered:** free-text replies checked by name matching alone (can't verify citations or stated verdicts); asking the LLM to add the caveats (it can forget them; TRD §8A requires them).
 - **Consequences:** The verdict label is the LLM's own description of its point, so a point labelled `none` could still imply eligibility in its wording. Name matching and the prompt reduce the risk, and the groundedness eval (M12-T05) will measure it. The sources list is part of the reply text, so the voice channel (M5) should speak the reply without it.
+
+## D-037 — PII detectors: what they catch, and where they run
+
+- **Date:** 2026-10-18
+- **Task:** M4-T10
+- **Status:** accepted
+- **Context:** TRD §10 asks for regex detectors for Aadhaar, bank account, OTP and phone numbers, used before logging and before the profile is saved, and a polite "not needed" reply. Indian users may type numbers in Devanagari digits, and bank account numbers have no fixed format (9 to 18 digits).
+- **Decision:**
+  - **Detectors** (`sahayak.privacy.pii`), in priority order where matches overlap: OTP (4–8 digits within a few characters of "OTP", "one-time password", "password", "ओटीपी" or "पासवर्ड", before or after the number); Aadhaar-like (12 digits starting 2–9, optionally grouped 4-4-4); phone (10 digits starting 6–9, optional +91 or 0); bank account (any run of 9–18 digits, or grouped digits next to an account word such as "a/c", "खाता" or "बँक"). Devanagari digits are matched like ASCII ones. Number edges exclude Latin letters, so digits inside trace and request ids aren't masked. "Code" and "PIN" alone don't count as OTP words (postal PIN codes).
+  - **Masking** keeps the last 4 digits (`XXXX-XXXX-0123`, `XXXXXX3210`, `XXXXXXXX2345`); OTPs are masked whole.
+  - **Where they run.** On the user's message before anything else (M4-T12): the agent, the LLM, the checkpoint and the `messages` table only ever see the masked text, and the reply starts with the "please don't share these, I haven't saved them" notice. In `extract_profile`, a fact whose text looks like an identifier is dropped (defence in depth). In log redaction, which now uses the same detectors instead of its own two regexes.
+- **Alternatives considered:** checksums (Aadhaar's Verhoeff check would miss typos, and a near-miss is still sensitive); a named-entity model (heavier, and these identifiers are numeric patterns).
+- **Consequences:** Any 9–18 digit run is treated as a possible account number, so such a number in a log line or message is masked too (an existing redaction test that expected a 14-digit "order number" to stay visible was changed). An income written as 9 or more plain digits (₹10 crore and up) would be masked, which is irrelevant for welfare schemes.

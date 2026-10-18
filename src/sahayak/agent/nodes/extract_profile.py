@@ -6,6 +6,7 @@ deterministically:
 - Each value is parsed for its field's type and validated by `UserProfile` (ranges, choices,
   state codes). Invalid values are dropped, never guessed at.
 - Sensitive fields are kept only with the session's sensitive-data consent (TRD §8B).
+- A value that looks like an Aadhaar, bank account, OTP or phone number is never saved (TRD §10).
 - A new value fills an unknown field and records a `FieldSource`. A value that disagrees with a
   known one does not overwrite it: it becomes a `Contradiction` the agent asks about. The
   answer to that confirmation question is taken as given; if the user doesn't answer it, the
@@ -21,6 +22,7 @@ from sahayak.agent.deps import AgentDeps
 from sahayak.agent.state import AgentState, Contradiction, ExtractedFact, FieldValue
 from sahayak.eligibility.fields import PROFILE_FIELDS
 from sahayak.eligibility.profile import FieldSource, UserProfile
+from sahayak.privacy.pii import find_pii
 
 log = structlog.get_logger(__name__)
 
@@ -86,7 +88,7 @@ async def extract_profile(state: AgentState, runtime: Runtime[AgentDeps]) -> Age
 
     for fact in understanding.facts:
         field = PROFILE_FIELDS[fact.field]
-        value = parse_fact(fact)
+        value = None if find_pii(fact.value) else parse_fact(fact)
         if value is None or (field.sensitive and not sensitive_ok):
             dropped += 1
             continue

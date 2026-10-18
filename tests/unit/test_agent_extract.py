@@ -137,3 +137,9 @@ async def test_declined_fields_are_remembered_until_answered() -> None:
 async def test_no_understanding_changes_nothing() -> None:
     state: AgentState = {"profile": UserProfile(language="en"), "understanding": None}
     assert await extract_profile(state, Runtime(context=make_deps())) == {}
+
+
+async def test_values_that_look_like_identifiers_are_never_saved() -> None:
+    update = await _extract({"district": "9876543210", "annual_family_income_inr": "234567890123"})
+    assert update["profile"].district is None
+    assert update["profile"].annual_family_income_inr is None
