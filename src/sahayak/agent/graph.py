@@ -6,7 +6,13 @@
     filter_results --a question is needed--> plan_question -> END
     filter_results --otherwise--> retrieve_evidence -> compose_response -> END
     classify_intent --reset / delete_account--> handle_reset -> END
-    classify_intent --anything else--> compose_response -> END
+    classify_intent --anything else--> compose_response (fixed reply) -> END
+
+Differences from TRD §10's edge list, until the features exist: `select_scheme` and `get_form`
+go through eligibility and evidence to `compose_response` (M7 adds `generate_form`), and
+`upload_document`, `my_documents` and `manage_reminders` get a fixed "coming soon" reply (M10
+adds `handle_document` and `manage_vault`, M11 reminders). Scheme questions go through
+`extract_profile` too, so facts stated alongside them are not lost.
 
 Each session is one checkpointer thread (`thread_id` = session id).
 """
@@ -24,6 +30,7 @@ from sahayak.agent.nodes.classify_intent import classify_intent
 from sahayak.agent.nodes.compose_response import compose_response
 from sahayak.agent.nodes.extract_profile import extract_profile
 from sahayak.agent.nodes.filter_results import filter_results
+from sahayak.agent.nodes.handle_reset import handle_reset
 from sahayak.agent.nodes.load_user_context import load_user_context
 from sahayak.agent.nodes.plan_question import plan_question
 from sahayak.agent.nodes.retrieve_evidence import retrieve_evidence
@@ -33,17 +40,14 @@ from sahayak.agent.state import AgentState
 
 type AgentGraph = CompiledStateGraph[AgentState, AgentDeps, AgentState, AgentState]
 
-
-async def _pending(state: AgentState, runtime: Runtime[AgentDeps]) -> AgentState:
-    """Placeholder for a node that later tasks implement."""
-    return {}
+PROFILE_INTENTS = frozenset({"discover", "ask_scheme_info", "select_scheme", "get_form"})
 
 
 def route_intent(state: AgentState) -> str:
     intent = state.get("intent", "discover")
     if intent in ("reset", "delete_account"):
         return "handle_reset"
-    if intent in ("discover", "ask_scheme_info", "select_scheme", "get_form"):
+    if intent in PROFILE_INTENTS:
         return "extract_profile"
     return "compose_response"
 
@@ -65,7 +69,7 @@ def build_graph(checkpointer: BaseCheckpointSaver[Any] | None = None) -> AgentGr
     graph.add_node("plan_question", plan_question)
     graph.add_node("retrieve_evidence", retrieve_evidence)
     graph.add_node("compose_response", compose_response)
-    graph.add_node("handle_reset", _pending)
+    graph.add_node("handle_reset", handle_reset)
 
     graph.add_edge(START, "load_user_context")
     graph.add_edge("load_user_context", "classify_intent")

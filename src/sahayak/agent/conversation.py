@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from sahayak.agent.state import AgentState
 from sahayak.agent.untrusted import as_data
@@ -15,7 +15,7 @@ class PromptMessage:
     text: str  # escaped for use inside prompt tags
 
 
-def message_text(message: AnyMessage) -> str:
+def message_text(message: BaseMessage) -> str:
     return message.content if isinstance(message.content, str) else ""
 
 

@@ -12,7 +12,7 @@ listed in `sahayak.agent.checkpoint.STATE_TYPES`, the checkpointer's deserialisa
 from datetime import date, datetime
 from typing import Annotated, Literal, TypedDict
 
-from langchain_core.messages import AnyMessage
+from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -154,7 +154,7 @@ class AgentState(TypedDict, total=False):
     # --- TRD §10
     session_id: str
     language: Language
-    messages: Annotated[list[AnyMessage], add_messages]
+    messages: Annotated[list[BaseMessage], add_messages]
     profile: UserProfile
     candidate_schemes: list[str]
     eligibility: dict[str, EligibilityResult]
