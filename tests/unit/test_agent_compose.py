@@ -263,3 +263,19 @@ async def test_replies_say_identifiers_are_not_needed() -> None:
     assert update["reply"] is not None
     assert update["reply"].text.startswith("Please don't share Aadhaar, bank account, OTP")
     assert update["reply"].text.endswith("ask about a scheme.")
+
+
+async def test_one_scheme_gets_the_whole_passage_budget() -> None:
+    from sahayak.agent.deps import AgentConfig
+
+    deps = make_deps(config=AgentConfig(evidence_passages=6, evidence_per_scheme=1))
+    single = await retrieve_evidence(
+        _state(
+            "ask_scheme_info",
+            named_schemes=["farm-aid"],
+            display_results=DisplayResults(),
+            understanding=TurnUnderstanding.model_validate(understood(query="farmer land rs")),
+        ),
+        Runtime(context=deps),
+    )
+    assert len(single["retrieved_context"]) == 2  # both farm-aid passages, not just 1

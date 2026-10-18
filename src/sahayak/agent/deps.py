@@ -24,7 +24,8 @@ class AgentConfig:
     history_messages: int = 6  # recent messages the LLM sees for context
     shortlist_passages: int = 20  # passages searched to shortlist schemes by need
     evidence_schemes: int = 5  # schemes a reply cites evidence for
-    evidence_per_scheme: int = 2  # passages per scheme
+    evidence_passages: int = 6  # passages per reply, shared between its schemes
+    evidence_per_scheme: int = 2  # at least this many per scheme
 
 
 @dataclass(frozen=True)

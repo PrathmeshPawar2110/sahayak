@@ -2,9 +2,11 @@
 
 Passages are fetched per scheme, so every scheme in the reply gets its own evidence and no
 scheme crowds out another: the displayed schemes on a discover turn, the named or chosen schemes
-on a question about schemes. The search text is the English phrase the turn-understanding call
-produced, or the scheme's name with "eligibility and benefits" when there is none. Named schemes
-are searched whatever the user's state, so their true verdict can be explained.
+on a question about schemes. A reply's passage budget is shared between its schemes, so a
+question about one scheme ("which documents?") gets more of that scheme's text. The search text
+is the English phrase the turn-understanding call produced, or the scheme's name with
+"eligibility and benefits" when there is none. Named schemes are searched whatever the user's
+state, so their true verdict can be explained.
 """
 
 from langgraph.runtime import Runtime
@@ -32,7 +34,11 @@ async def retrieve_evidence(state: AgentState, runtime: Runtime[AgentDeps]) -> A
     understanding = state.get("understanding")
     query = understanding.search_query.strip() if understanding else ""
     chunks: dict[str, EvidenceChunk] = {}
-    for scheme_id in evidence_targets(state, deps.config.evidence_schemes):
+    targets = evidence_targets(state, deps.config.evidence_schemes)
+    per_scheme = max(
+        deps.config.evidence_per_scheme, deps.config.evidence_passages // max(1, len(targets))
+    )
+    for scheme_id in targets:
         scheme = catalogue.get(scheme_id)
         if scheme is None:
             continue
@@ -40,7 +46,7 @@ async def retrieve_evidence(state: AgentState, runtime: Runtime[AgentDeps]) -> A
             query or f"{scheme.name_en} eligibility and benefits",
             state=None,
             scheme_ids=[scheme_id],
-            top_k=deps.config.evidence_per_scheme,
+            top_k=per_scheme,
         )
         for chunk in found:
             chunks.setdefault(chunk.chunk_id, chunk)

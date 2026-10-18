@@ -1,11 +1,13 @@
 """Redis read-through cache for embeddings (NFR Cost: cache embeddings for repeated queries).
 
 The cache fails open: if Redis is unreachable, vectors are computed as if nothing were cached,
-so a cache outage costs latency, not requests.
+so a cache outage costs latency, not requests. After a failure Redis is skipped for
+`retry_after_sec`, so each request doesn't wait for a connection attempt.
 """
 
 import hashlib
-from collections.abc import Sequence
+import time
+from collections.abc import Callable, Sequence
 
 import numpy as np
 import structlog
@@ -22,11 +24,26 @@ KEY_VERSION = "v1"
 class CachedEmbeddingProvider(EmbeddingProvider):
     """Wraps another provider; only texts missing from Redis reach it."""
 
-    def __init__(self, inner: EmbeddingProvider, redis: Redis, *, ttl_sec: int) -> None:
+    def __init__(
+        self,
+        inner: EmbeddingProvider,
+        redis: Redis,
+        *,
+        ttl_sec: int,
+        retry_after_sec: float = 30.0,
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> None:
         self._inner = inner
         self._redis = redis
         self._ttl_sec = ttl_sec
+        self._retry_after_sec = retry_after_sec
+        self._monotonic = monotonic
+        self._skip_until = 0.0
         self.name = inner.name
+
+    def _unavailable(self, exc: Exception) -> None:
+        log.warning("embedding_cache_unavailable", error=type(exc).__name__)
+        self._skip_until = self._monotonic() + self._retry_after_sec
 
     @property
     def model(self) -> str:
@@ -41,11 +58,13 @@ class CachedEmbeddingProvider(EmbeddingProvider):
         return f"emb:{KEY_VERSION}:{self._inner.cache_namespace}:{kind}:{digest}"
 
     async def _embed(self, texts: Sequence[str], kind: EmbeddingKind) -> list[list[float]]:
+        if self._monotonic() < self._skip_until:
+            return await self._inner.embed(texts, kind)
         keys = [self.key(text, kind) for text in texts]
         try:
             cached: list[bytes | str | None] = await self._redis.mget(keys)
         except RedisError as exc:
-            log.warning("embedding_cache_unavailable", error=type(exc).__name__)
+            self._unavailable(exc)
             return await self._inner.embed(texts, kind)
         vectors: list[list[float] | None] = [
             _decode(raw, self.dimension) if raw is not None else None for raw in cached
@@ -63,7 +82,7 @@ class CachedEmbeddingProvider(EmbeddingProvider):
                         pipe.set(self.key(text, kind), _encode(vector), ex=self._ttl_sec)
                     await pipe.execute()
             except RedisError as exc:
-                log.warning("embedding_cache_unavailable", error=type(exc).__name__)
+                self._unavailable(exc)
             for i in missing:
                 vectors[i] = computed[texts[i]]
         return [v for v in vectors if v is not None]
