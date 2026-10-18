@@ -41,7 +41,7 @@
 | M0 | Project skeleton | §14, §13, §17 | `DONE` | 2026-10-10 | 2026-10-10 |
 | M1 | Data layer and ingestion | §8, §9 | `NEEDS_REVIEW` | 2026-10-10 | |
 | M2 | Rule engine and question planner | §9.2, §10 | `NEEDS_REVIEW` | 2026-10-17 | |
-| M3 | RAG retriever | §7, §8 | `TODO` | | |
+| M3 | RAG retriever | §7, §8 | `IN_PROGRESS` | 2026-10-18 | |
 | M4 | LangGraph agent (text only) | §10, §11 | `TODO` | | |
 | M5 | Voice pipeline | §7, FR-1–3, FR-10 | `TODO` | | |
 | M6 | Web frontend | §14 M6 | `TODO` | | |
@@ -133,11 +133,11 @@
 
 ## M3 — RAG retriever
 
-**Status:** `TODO`
+**Status:** `IN_PROGRESS`
 
 | ID | Task | Owner | Depends | Status | Notes |
 |---|---|---|---|---|---|
-| M3-T01 | Vector search over `scheme_chunks` (pgvector, cosine), filtered by scheme status and state. | CC | M1 | `TODO` | |
+| M3-T01 | Vector search over `scheme_chunks` (pgvector, cosine), filtered by scheme status and state. | CC | M1 | `IN_PROGRESS` | |
 | M3-T02 | Full-text search (Postgres `tsvector`, `simple` config for hi/mr + `english` for en). | CC | M1 | `TODO` | |
 | M3-T03 | Reciprocal Rank Fusion of both result lists; top-k=5; dedupe by chunk. | CC | M3-T01, M3-T02 | `TODO` | |
 | M3-T04 | Language-aware querying: query in the user's language and, if useful, an English translation; merge results. | CC | M3-T03 | `TODO` | |
