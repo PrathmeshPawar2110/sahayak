@@ -279,6 +279,29 @@ messages:
     en: "last verified {date}"
     hi: "अंतिम पुष्टि {date}"
     mr: "शेवटची पडताळणी {date}"
+  # --- voice (M5)
+  confirm_heard:
+    en: >-
+      I may not have heard you clearly. I heard: "{heard}". Is that right? If not, please say it
+      again, or type it.
+    hi: >-
+      शायद मैं आपकी बात ठीक से सुन नहीं पाया। मैंने सुना: "{heard}"। क्या यह सही है? अगर नहीं, तो
+      कृपया फिर से बोलें या लिखकर भेजें।
+    mr: >-
+      कदाचित मला तुमचे बोलणे नीट ऐकू आले नाही. मी ऐकले: "{heard}". हे बरोबर आहे का? नसेल तर
+      कृपया पुन्हा बोला किंवा लिहून पाठवा.
+  no_speech:
+    en: I couldn't hear anything in that recording. Please try again, a little closer to the microphone.
+    hi: उस रिकॉर्डिंग में मुझे कुछ सुनाई नहीं दिया। कृपया माइक के थोड़ा पास आकर फिर से बोलें।
+    mr: त्या रेकॉर्डिंगमध्ये मला काहीच ऐकू आले नाही. कृपया माइकच्या थोडे जवळ येऊन पुन्हा बोला.
+  audio_failed:
+    en: Sorry, I couldn't understand the recording just now. Please try again, or type your message.
+    hi: माफ़ कीजिए, अभी मैं रिकॉर्डिंग समझ नहीं पाया। कृपया फिर से कोशिश करें, या अपना संदेश लिखकर भेजें।
+    mr: माफ करा, आत्ता मला रेकॉर्डिंग समजले नाही. कृपया पुन्हा प्रयत्न करा, किंवा तुमचा संदेश लिहून पाठवा.
+  official_website:
+    en: the official website
+    hi: आधिकारिक वेबसाइट
+    mr: अधिकृत वेबसाइट
   error:
     en: Sorry, I'm having trouble right now. Please try again in a moment.
     hi: माफ़ कीजिए, अभी कुछ दिक्कत आ रही है। कृपया थोड़ी देर में फिर कोशिश करें।
