@@ -1,0 +1,31 @@
+{"id": "q001", "language": "en", "query": "I am a small farmer with 2 acres. Is there any yearly cash support?", "targets": [{"scheme_id": "pm-kisan"}], "note": "Scheme from a need."}
+{"id": "q002", "language": "en", "query": "pension scheme for daily wage workers after age 60", "targets": [{"scheme_id": "pm-sym"}, {"scheme_id": "apy"}], "note": "Two unorganised-sector pension schemes."}
+{"id": "q003", "language": "en", "query": "free LPG gas connection for poor women", "targets": [{"scheme_id": "pmuy"}]}
+{"id": "q004", "language": "en", "query": "which documents do I need for an Ujjwala gas connection?", "targets": [{"scheme_id": "pmuy", "contains": ["documents required"]}], "note": "Chunk: the document list."}
+{"id": "q005", "language": "en", "query": "savings account for my daughter's education and marriage", "targets": [{"scheme_id": "ssy"}]}
+{"id": "q006", "language": "en", "query": "health insurance of 5 lakh for senior citizens above 70", "targets": [{"scheme_id": "ab-pmjay", "contains": ["70"]}], "note": "Chunk: the 70+ extension."}
+{"id": "q007", "language": "en", "query": "government help to build a pucca house in my village", "targets": [{"scheme_id": "pmay-g"}]}
+{"id": "q008", "language": "en", "query": "loan and skill training for carpenters and blacksmiths", "targets": [{"scheme_id": "pm-vishwakarma"}]}
+{"id": "q009", "language": "en", "query": "how much money do women get every month in Maharashtra?", "state": "MH", "targets": [{"scheme_id": "mh-majhi-ladki-bahin", "contains": ["1,500"]}], "note": "Chunk: the benefit amount."}
+{"id": "q010", "language": "en", "query": "free hospital treatment in Maharashtra for families with a ration card", "state": "MH", "targets": [{"scheme_id": "mh-mjpjay"}]}
+{"id": "q011", "language": "en", "query": "who is excluded from PM-KISAN? can income tax payers get it?", "targets": [{"scheme_id": "pm-kisan", "contains": ["income tax"]}], "note": "Chunk: the exclusions."}
+{"id": "q012", "language": "hi", "query": "मेरे पास दो एकड़ खेत है, क्या सरकार साल में पैसे देती है?", "targets": [{"scheme_id": "pm-kisan"}]}
+{"id": "q013", "language": "hi", "query": "असंगठित क्षेत्र के मजदूरों के लिए 3000 रुपये महीना पेंशन", "targets": [{"scheme_id": "pm-sym"}]}
+{"id": "q014", "language": "hi", "query": "गरीब महिलाओं को मुफ्त गैस कनेक्शन कैसे मिलेगा?", "targets": [{"scheme_id": "pmuy"}]}
+{"id": "q015", "language": "hi", "query": "बेटी के भविष्य के लिए बचत खाता योजना", "targets": [{"scheme_id": "ssy"}]}
+{"id": "q016", "language": "hi", "query": "5 लाख तक मुफ्त इलाज वाला आयुष्मान कार्ड", "targets": [{"scheme_id": "ab-pmjay"}]}
+{"id": "q017", "language": "hi", "query": "गांव में पक्का घर बनाने के लिए सरकारी मदद", "targets": [{"scheme_id": "pmay-g"}]}
+{"id": "q018", "language": "hi", "query": "बढ़ई और लोहार के लिए बिना गारंटी का लोन", "targets": [{"scheme_id": "pm-vishwakarma"}]}
+{"id": "q019", "language": "hi", "query": "अटल पेंशन योजना में हर महीने कितना जमा करना होगा?", "targets": [{"scheme_id": "apy", "contains": ["monthly contribution"]}], "note": "Chunk: contribution amounts."}
+{"id": "q020", "language": "hi", "query": "सुकन्या समृद्धि खाता खोलने के लिए कौन से दस्तावेज चाहिए?", "targets": [{"scheme_id": "ssy", "contains": ["which documents"]}], "note": "Chunk: the document list."}
+{"id": "q021", "language": "hi", "query": "pm kisan ka paisa kin logon ko nahi milta?", "targets": [{"scheme_id": "pm-kisan", "contains": ["exclusions"]}], "note": "Romanised Hinglish. Chunk: the exclusions."}
+{"id": "q022", "language": "mr", "query": "माझ्याकडे दोन एकर शेती आहे, मला कोणत्या योजना मिळतील?", "state": "MH", "targets": [{"scheme_id": "pm-kisan"}], "note": "TRD §3 persona."}
+{"id": "q023", "language": "mr", "query": "लाडकी बहीण योजनेत महिलांना दरमहा किती पैसे मिळतात?", "state": "MH", "targets": [{"scheme_id": "mh-majhi-ladki-bahin", "contains": ["1,500"]}], "note": "Chunk: the benefit amount."}
+{"id": "q024", "language": "mr", "query": "लाडकी बहीण योजनेसाठी पात्रता काय आहे?", "state": "MH", "targets": [{"scheme_id": "mh-majhi-ladki-bahin", "contains": ["eligib"]}], "note": "Chunk: eligibility."}
+{"id": "q025", "language": "mr", "query": "महात्मा फुले जन आरोग्य योजनेत कोणते उपचार मोफत मिळतात?", "state": "MH", "targets": [{"scheme_id": "mh-mjpjay", "contains": ["surgeries", "specialties"]}], "note": "Chunk: the benefits."}
+{"id": "q026", "language": "mr", "query": "वयाच्या साठीनंतर दरमहा पेन्शन मिळेल अशी योजना", "state": "MH", "targets": [{"scheme_id": "pm-sym"}, {"scheme_id": "apy"}], "note": "Two pension schemes."}
+{"id": "q027", "language": "mr", "query": "गरीब कुटुंबातील महिलांना मोफत गॅस जोडणी", "state": "MH", "targets": [{"scheme_id": "pmuy"}]}
+{"id": "q028", "language": "mr", "query": "मुलीच्या शिक्षणासाठी बचत योजना", "state": "MH", "targets": [{"scheme_id": "ssy"}]}
+{"id": "q029", "language": "mr", "query": "ग्रामीण भागात घर बांधण्यासाठी अनुदान", "state": "MH", "targets": [{"scheme_id": "pmay-g"}]}
+{"id": "q030", "language": "mr", "query": "कारागिरांना कौशल्य प्रशिक्षण आणि कर्ज", "state": "MH", "targets": [{"scheme_id": "pm-vishwakarma"}]}
+{"id": "q031", "language": "mr", "query": "७० वर्षांवरील ज्येष्ठ नागरिकांना मोफत आरोग्य विमा", "state": "MH", "targets": [{"scheme_id": "ab-pmjay", "contains": ["70"]}], "note": "Devanagari digits. Chunk: the 70+ extension."}

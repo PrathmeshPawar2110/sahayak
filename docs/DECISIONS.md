@@ -352,3 +352,24 @@ Record one entry per decision, newest last. Reference them from `IMPLEMENTATION.
 - **Decision:** `HybridRetriever` takes an optional `QueryTranslator` and the user's language. A query is translated when the language is `hi` or `mr` (including romanised Hinglish) or when it contains Devanagari. `LLMQueryTranslator` uses the configured LLM with the versioned prompt `query_translation@v1` (structured output, user text wrapped as data). Both queries are embedded in one call, each gets a vector and a full-text list, and all four lists go into one RRF, so a chunk found in both languages ranks higher. A failed translation (any `LLMError`) is logged by error type and the original query is still searched; a translation equal to the query is dropped. English queries are never translated.
 - **Alternatives considered:** Translating chunks into hi/mr at ingestion (TRD §8 step 4, optional; it multiplies the index and still misses romanised queries); a separate translation API (another provider for one feature; the LLM is already configured); translating only for full-text search (the English vector query also helps, see the eval in D-031).
 - **Consequences:** A Hindi or Marathi turn costs one short LLM call (about a second with gpt-4o). Translations aren't cached yet; the query embeddings are (Redis, D-015). The agent (M4) can pass its own translation if it already has one.
+
+## D-031 — Retrieval eval: phrase-based targets, on-demand runs
+
+- **Date:** 2026-10-18
+- **Task:** M3-T05
+- **Status:** accepted
+- **Context:** M3's exit criterion is recall@5 ≥ 0.85 on about 30 queries with an expected scheme or chunk. Chunk ids are content hashes (D-017), so they change whenever a source is re-fetched or re-chunked. Scoring needs the real ingested index and the 2 GB embedding model, neither of which CI has.
+- **Decision:**
+  - **Dataset.** `evals/retrieval.jsonl`: 31 queries written as users would ask them (11 English, 10 Hindi including one romanised Hinglish query, 10 Marathi, with the TRD §3 farmer persona), covering all 10 schemes. Marathi queries and Maharashtra-scheme queries carry `state: MH`, which is applied as the search filter. A target is a scheme, optionally narrowed with `contains` phrases: a chunk matches if its section or text contains any of them (case-insensitive). 11 targets are chunk-level (document lists, contribution amounts, exclusions, the 70+ extension, benefit amounts). Two queries have two targets (PM-SYM and APY for "pension after 60"). The queries were written before the first run and not tuned to it.
+  - **Metrics.** recall@5 is the share of a query's targets found in the top 5, averaged over queries; also hit@1 and MRR, overall and per language. `sahayak eval --suite retrieval` writes `evals/reports/<date>-retrieval.md`, records an `eval_runs` row (embedding model, translator prompt, dataset hash) and exits 1 below `--min-recall` (0.85). `--no-translate` runs without the LLM.
+  - **Where it runs.** On demand, against a database with the ingested schemes, like the LLM suites (TRD §12). CI covers the runner, the metrics and the CLI with the synthetic corpus and the fake embedder, and checks the committed query set (languages, valid scheme ids, every scheme targeted).
+- **Results (2026-10-18, M1 index: 165 English chunks, multilingual-e5-large, gpt-4o translation):**
+
+  | Run | recall@5 | hit@1 | MRR | hi hit@1 | mr hit@1 | en hit@1 |
+  |---|---|---|---|---|---|---|
+  | with translation (default) | 0.919 | 0.871 | 0.895 | 0.80 | 0.90 | 0.91 |
+  | without translation | 0.919 | 0.742 | 0.825 | 0.60 | 0.70 | 0.91 |
+
+  Translation leaves recall unchanged but moves the right chunk to the top much more often for Hindi and Marathi (D-030). It fixes the TRD persona query (q022, Marathi "I have two acres of farmland"), which misses without it. Remaining misses with translation: q002 (all five results are PM-SYM chunks, so APY, the second target, is crowded out), q021 (the Hinglish "who doesn't get PM-KISAN" finds PM-KISAN but not its exclusions chunk), and q024 (the Ladki Bahin eligibility question finds the scheme's overview, which also gives the age range, but not its eligibility chunk).
+- **Alternatives considered:** Chunk-id targets (break on every re-chunk); scheme-only targets (too lenient for evidence retrieval, which needs the passage); running the suite in CI (would need the model and a full ingest in every run).
+- **Consequences:** The numbers depend on the local index. Re-run after any ingestion, chunking or retriever change. The set is small and written by one person, so it should get a human spot-check and grow with the scheme list (M12). q002 suggests the agent's shortlist (M4-T04) should take candidate schemes from more than the top 5 chunks, or cap chunks per scheme.
