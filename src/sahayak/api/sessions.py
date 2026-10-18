@@ -6,6 +6,7 @@ profile, the conversation state and the message log; `sensitive` erases sensitiv
 """
 
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
@@ -13,6 +14,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy import delete, select
 
 from sahayak.agent.questions import SENSITIVE_FIELDS
+from sahayak.agent.replies import message
 from sahayak.agent.service import AgentService, ShownScheme, TurnResult
 from sahayak.agent.state import ConsentPurpose
 from sahayak.api.deps import DbSession
@@ -35,6 +37,9 @@ from sahayak.config import Settings
 from sahayak.db.models import Language, Message, MessageRole, Profile, Session
 from sahayak.eligibility.profile import Language as LanguageCode
 from sahayak.eligibility.profile import UserProfile
+from sahayak.voice.audio import AudioFormat
+from sahayak.voice.pipeline import VoiceServices
+from sahayak.voice.speech import spoken_text
 
 router = APIRouter(
     prefix="/v1/sessions",
@@ -62,6 +67,14 @@ def _settings(request: Request) -> Settings:
 AppSettings = Annotated[Settings, Depends(_settings)]
 
 
+def get_voice(request: Request) -> VoiceServices:
+    voice: VoiceServices = request.app.state.voice
+    return voice
+
+
+Voice = Annotated[VoiceServices, Depends(get_voice)]
+
+
 def _now() -> datetime:
     return datetime.now(UTC)
 
@@ -70,7 +83,7 @@ _CODES: dict[Language, LanguageCode] = {Language.HI: "hi", Language.MR: "mr", La
 PURPOSES: tuple[ConsentPurpose, ...] = ("profile", "sensitive")
 
 
-def _language(session: Session) -> LanguageCode | None:
+def session_language(session: Session) -> LanguageCode | None:
     return _CODES[Language(session.language)] if session.language else None
 
 
@@ -82,13 +95,13 @@ def _session_response(session: Session) -> SessionResponse:
     return SessionResponse(
         session_id=session.id,
         channel=session.channel,
-        language=_language(session),
+        language=session_language(session),
         expires_at=session.expires_at,
         consents=_consents(session),
     )
 
 
-async def _load(db: DbSession, session_id: uuid.UUID, *, lock: bool = False) -> Session:
+async def load_session(db: DbSession, session_id: uuid.UUID, *, lock: bool = False) -> Session:
     statement = select(Session).where(Session.id == session_id)
     if lock:  # one turn at a time per session: concurrent turns would race on the checkpoint
         statement = statement.with_for_update()
@@ -118,9 +131,9 @@ async def create_session(
 
 @router.post("/{session_id}/consent", summary="Grant or withdraw consent")
 async def set_consent(
-    session_id: uuid.UUID, body: ConsentRequest, db: DbSession, agent: Agent
+    session_id: uuid.UUID, body: ConsentRequest, db: DbSession, agent: Agent, voice: Voice
 ) -> ConsentResponse:
-    session = await _load(db, session_id, lock=True)
+    session = await load_session(db, session_id, lock=True)
     consents: dict[str, Any] = dict(session.consents or {})
     if body.granted:
         record = {"granted_at": _now().isoformat(), "policy_version": body.policy_version}
@@ -129,7 +142,7 @@ async def set_consent(
         for purpose in body.purposes:
             consents.pop(purpose, None)
         if "profile" in body.purposes:
-            await _erase_conversation(db, agent, session_id)
+            await _erase_conversation(db, agent, voice, session_id)
         elif "sensitive" in body.purposes:
             await _erase_sensitive(db, agent, session_id)
     session.consents = consents
@@ -137,7 +150,10 @@ async def set_consent(
     return ConsentResponse(consents=_consents(session))
 
 
-async def _erase_conversation(db: DbSession, agent: AgentService, session_id: uuid.UUID) -> None:
+async def _erase_conversation(
+    db: DbSession, agent: AgentService, voice: VoiceServices, session_id: uuid.UUID
+) -> None:
+    await forget_audio(db, voice, session_id)
     await db.execute(delete(Profile).where(Profile.session_id == session_id))
     await db.execute(delete(Message).where(Message.session_id == session_id))
     await agent.forget(str(session_id))
@@ -151,6 +167,87 @@ async def _erase_sensitive(db: DbSession, agent: AgentService, session_id: uuid.
             k: v for k, v in row.field_sources.items() if k not in SENSITIVE_FIELDS
         }
     await agent.forget_sensitive(str(session_id))
+
+
+@dataclass(frozen=True)
+class CompletedTurn:
+    result: TurnResult
+    reply_id: uuid.UUID | None  # the stored reply; None when the turn deleted the session
+
+
+def require_consent(session: Session) -> list[ConsentPurpose]:
+    """The session's consents; a turn needs `profile`, since it saves what the user says."""
+    consents = [purpose for purpose in PURPOSES if purpose in (session.consents or {})]
+    if "profile" not in consents:
+        raise AppError(
+            "consent_required", "Please agree to the privacy notice before chatting.", 409
+        )
+    return consents
+
+
+async def complete_turn(
+    db: DbSession,
+    agent: AgentService,
+    settings: Settings,
+    voice: VoiceServices,
+    session_id: uuid.UUID,
+    text: str,
+    *,
+    asr_confidence: float | None = None,
+) -> CompletedTurn:
+    """Run one agent turn on the user's text and save it: the messages, the profile and the
+    session's language and expiry. Text and voice turns both end here."""
+    if not agent.available:
+        raise AppError("agent_unavailable", "The assistant is not available right now.", 503)
+    session = await load_session(db, session_id, lock=True)
+    consents = require_consent(session)
+    result = await agent.run_turn(
+        str(session_id),
+        text,
+        language=session_language(session) or "en",
+        consents=consents,
+        asr_confidence=asr_confidence,
+    )
+    reply_id: uuid.UUID | None = _log_messages(
+        db, session_id, result, asr_confidence=asr_confidence
+    )
+    if result.deletes_session:
+        await forget_audio(db, voice, session_id)
+        await agent.forget(str(session_id))
+        await db.delete(session)
+        reply_id = None
+    else:
+        if result.profile is not None:
+            await _save_profile(db, session_id, result.profile)
+        session.language = Language(result.language)
+        session.expires_at = _now() + timedelta(days=settings.session_ttl_days)
+    await db.commit()
+    return CompletedTurn(result, reply_id)
+
+
+async def log_notice(
+    db: DbSession, session_id: uuid.UUID, key: str, language: LanguageCode
+) -> tuple[str, uuid.UUID]:
+    """Store a fixed assistant message that needed no agent turn ("I couldn't hear anything")
+    and return its text and id."""
+    text = message(key, language)
+    reply_id = uuid.uuid4()
+    db.add(
+        Message(
+            id=reply_id,
+            session_id=session_id,
+            role=MessageRole.ASSISTANT,
+            text=text,
+            lang=Language(language),
+        )
+    )
+    await db.commit()
+    return text, reply_id
+
+
+def audio_url(session_id: uuid.UUID, reply_id: uuid.UUID, audio_format: AudioFormat) -> str:
+    """Where the client fetches a spoken reply (synthesised on the first request)."""
+    return f"/v1/sessions/{session_id}/messages/{reply_id}/audio?format={audio_format}"
 
 
 @router.post(
@@ -167,41 +264,36 @@ async def post_message(
     db: DbSession,
     agent: Agent,
     settings: AppSettings,
+    voice: Voice,
 ) -> MessageResponse:
-    if not agent.available:
-        raise AppError("agent_unavailable", "The assistant is not available right now.", 503)
-    session = await _load(db, session_id, lock=True)
-    consents = [purpose for purpose in PURPOSES if purpose in (session.consents or {})]
-    if "profile" not in consents:
-        raise AppError(
-            "consent_required", "Please agree to the privacy notice before chatting.", 409
-        )
-    result = await agent.run_turn(
-        str(session_id),
-        body.text,
-        language=_language(session) or "en",
-        consents=consents,
+    turn = await complete_turn(db, agent, settings, voice, session_id, body.text)
+    url = (
+        audio_url(session_id, turn.reply_id, "mp3")
+        if turn.reply_id is not None and voice.speaker is not None
+        else None
     )
-    _log_messages(db, session_id, result)
-    if result.deletes_session:
-        await agent.forget(str(session_id))
-        await db.delete(session)
-    else:
-        if result.profile is not None:
-            await _save_profile(db, session_id, result.profile)
-        session.language = Language(result.language)
-        session.expires_at = _now() + timedelta(days=settings.session_ttl_days)
-    await db.commit()
-    return _message_response(result)
+    return message_response(turn.result, audio_url=url)
 
 
-def _log_messages(db: DbSession, session_id: uuid.UUID, result: TurnResult) -> None:
+def _log_messages(
+    db: DbSession, session_id: uuid.UUID, result: TurnResult, *, asr_confidence: float | None
+) -> uuid.UUID:
+    """Add the user's message (identifiers masked) and the reply; return the reply's id.
+    Recordings are not kept: a voice message is stored as its transcript."""
     language = Language(result.language)
+    reply_id = uuid.uuid4()
     db.add(
-        Message(session_id=session_id, role=MessageRole.USER, text=result.user_text, lang=language)
+        Message(
+            session_id=session_id,
+            role=MessageRole.USER,
+            text=result.user_text,
+            lang=language,
+            asr_confidence=asr_confidence,
+        )
     )
     db.add(
         Message(
+            id=reply_id,
             session_id=session_id,
             role=MessageRole.ASSISTANT,
             text=result.reply.text,
@@ -209,6 +301,7 @@ def _log_messages(db: DbSession, session_id: uuid.UUID, result: TurnResult) -> N
             latency_ms=result.latency_ms,
         )
     )
+    return reply_id
 
 
 async def _save_profile(db: DbSession, session_id: uuid.UUID, profile: UserProfile) -> None:
@@ -235,10 +328,11 @@ def _scheme_results(shown: list[ShownScheme]) -> list[SchemeResult]:
     ]
 
 
-def _message_response(result: TurnResult) -> MessageResponse:
+def message_response(result: TurnResult, *, audio_url: str | None) -> MessageResponse:
     reply = result.reply
     return MessageResponse(
         reply_text=reply.text,
+        reply_audio_url=audio_url,
         kind=reply.kind,
         language=result.language,
         intent=result.intent,
@@ -266,11 +360,11 @@ def _message_response(result: TurnResult) -> MessageResponse:
 
 @router.get("/{session_id}/profile", summary="What Sahayak knows about the user")
 async def get_profile(session_id: uuid.UUID, db: DbSession) -> ProfileResponse:
-    session = await _load(db, session_id)
+    session = await load_session(db, session_id)
     row = await db.scalar(select(Profile).where(Profile.session_id == session_id))
     return ProfileResponse(
         session_id=session_id,
-        language=_language(session),
+        language=session_language(session),
         profile={k: v for k, v in (row.profile if row else {}).items() if k != "language"},
         field_sources={
             k: FieldSourceResponse.model_validate(v)
@@ -285,11 +379,28 @@ async def get_profile(session_id: uuid.UUID, db: DbSession) -> ProfileResponse:
     summary="Delete the session, its profile and messages",
     responses={410: {"model": ErrorEnvelope, "description": "The session has expired"}},
 )
-async def delete_session(session_id: uuid.UUID, db: DbSession, agent: Agent) -> Response:
+async def delete_session(
+    session_id: uuid.UUID, db: DbSession, agent: Agent, voice: Voice
+) -> Response:
     session = await db.scalar(select(Session).where(Session.id == session_id).with_for_update())
     if session is None:
         raise AppError("session_not_found", "No such session.", 404)
+    await forget_audio(db, voice, session_id)
     await agent.forget(str(session_id))
     await db.delete(session)  # profile and messages cascade
     await db.commit()
     return Response(status_code=204)
+
+
+async def forget_audio(db: DbSession, voice: VoiceServices, session_id: uuid.UUID) -> None:
+    """Delete the cached audio of the session's replies: it may repeat what the user said."""
+    if voice.speaker is None:
+        return
+    rows = await db.execute(
+        select(Message.text, Message.lang).where(
+            Message.session_id == session_id, Message.role == MessageRole.ASSISTANT
+        )
+    )
+    for text, lang in rows:
+        language = _CODES[Language(lang)] if lang else "en"
+        await voice.speaker.forget(spoken_text(text, language), language)
