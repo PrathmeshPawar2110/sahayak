@@ -118,6 +118,9 @@ class Speaker:
     def voice_id(self) -> str:
         return self._tts.voice_id
 
+    async def aclose(self) -> None:
+        await self._tts.aclose()
+
     def key(self, sentence: str, language: Language) -> str:
         digest = hashlib.sha256(sentence.encode("utf-8")).hexdigest()
         return f"tts:{KEY_VERSION}:{self._tts.voice_id}:{language}:{digest}"

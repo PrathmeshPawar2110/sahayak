@@ -58,6 +58,9 @@ class SarvamSTT(STTProvider):
     def model(self) -> str:
         return self._model
 
+    async def aclose(self) -> None:
+        await self._client.aclose()
+
     async def _transcribe(
         self, audio: bytes, *, mime: str, language_hint: Language | None
     ) -> Transcript:

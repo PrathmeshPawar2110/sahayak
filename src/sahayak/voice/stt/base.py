@@ -61,6 +61,10 @@ class STTProvider(ABC):
     @abstractmethod
     def model(self) -> str: ...
 
+    async def aclose(self) -> None:
+        """Close the provider's HTTP client (providers without one have nothing to do)."""
+        return None
+
     async def transcribe(
         self, audio: bytes, *, mime: str, language_hint: Language | None = None
     ) -> Transcript:
@@ -121,6 +125,10 @@ class FallbackSTT(STTProvider):
     @property
     def model(self) -> str:
         return self._providers[0].model
+
+    async def aclose(self) -> None:
+        for provider in self._providers:
+            await provider.aclose()
 
     async def transcribe(
         self, audio: bytes, *, mime: str, language_hint: Language | None = None

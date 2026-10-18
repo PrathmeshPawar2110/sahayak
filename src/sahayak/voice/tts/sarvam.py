@@ -46,6 +46,9 @@ class SarvamTTS(TTSProvider):
     def model(self) -> str:
         return self._model
 
+    async def aclose(self) -> None:
+        await self._client.aclose()
+
     @property
     def voice(self) -> str:
         return self._voice

@@ -52,6 +52,9 @@ class WhisperSTT(STTProvider):
     def model(self) -> str:
         return self._model
 
+    async def aclose(self) -> None:
+        await self._client.close()
+
     async def _transcribe(
         self, audio: bytes, *, mime: str, language_hint: Language | None
     ) -> Transcript:

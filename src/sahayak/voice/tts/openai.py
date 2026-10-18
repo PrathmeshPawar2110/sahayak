@@ -38,6 +38,9 @@ class OpenAITTS(TTSProvider):
     def model(self) -> str:
         return self._model
 
+    async def aclose(self) -> None:
+        await self._client.close()
+
     @property
     def voice(self) -> str:
         return self._voice

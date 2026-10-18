@@ -61,6 +61,7 @@ def create_app(
                 app.state.agent = service
                 yield
         finally:
+            await app.state.voice.aclose()
             await redis.aclose()
             await engine.dispose()
 

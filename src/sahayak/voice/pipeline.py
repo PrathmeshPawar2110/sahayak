@@ -34,6 +34,12 @@ class VoiceServices:
     max_upload_bytes: int = 5 * 1024 * 1024
     partial_interval_sec: float = 2.0
 
+    async def aclose(self) -> None:
+        if self.stt is not None:
+            await self.stt.aclose()
+        if self.speaker is not None:
+            await self.speaker.aclose()
+
 
 def voice_services(settings: Settings, redis: Redis | None) -> VoiceServices:
     """Speech providers from settings. A provider that is not configured is left out."""

@@ -236,3 +236,14 @@ def test_factory_builds_the_configured_chain() -> None:
 def test_factory_config_errors(values: dict[str, Any], message: str) -> None:
     with pytest.raises(TTSConfigError, match=message):
         create_tts_provider(_settings(**values))
+
+
+async def test_providers_close_their_clients() -> None:
+    http = httpx.AsyncClient(transport=httpx.MockTransport(Server()))
+    sarvam = SarvamTTS(api_key="k", model="m", voice="v", timeout_sec=1, http_client=http)
+    other = _openai(Server())
+
+    await FallbackTTS([sarvam, other]).aclose()
+
+    assert http.is_closed
+    assert other._client.is_closed()  # type: ignore[attr-defined]

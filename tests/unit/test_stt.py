@@ -396,3 +396,14 @@ def test_factory_without_a_fallback_key_keeps_the_primary() -> None:
 def test_factory_config_errors(values: dict[str, Any], message: str) -> None:
     with pytest.raises(STTConfigError, match=message):
         create_stt_provider(_settings(**values))
+
+
+async def test_providers_close_their_clients() -> None:
+    http = httpx.AsyncClient(transport=httpx.MockTransport(Server()))
+    sarvam = SarvamSTT(api_key="k", model="m", timeout_sec=1, http_client=http)
+    whisper = WhisperSTT(api_key="k", model="m", timeout_sec=1, client=_openai_client(Server()))
+
+    await FallbackSTT([sarvam, whisper, FakeSTTProvider()]).aclose()
+
+    assert http.is_closed
+    assert whisper._client.is_closed()

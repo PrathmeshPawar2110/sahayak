@@ -49,6 +49,10 @@ class TTSProvider(ABC):
     @abstractmethod
     def model(self) -> str: ...
 
+    async def aclose(self) -> None:
+        """Close the provider's HTTP client (providers without one have nothing to do)."""
+        return None
+
     @property
     @abstractmethod
     def voice(self) -> str: ...
@@ -111,6 +115,10 @@ class FallbackTTS(TTSProvider):
     @property
     def model(self) -> str:
         return self._providers[0].model
+
+    async def aclose(self) -> None:
+        for provider in self._providers:
+            await provider.aclose()
 
     @property
     def voice(self) -> str:
