@@ -42,7 +42,7 @@
 | M1 | Data layer and ingestion | §8, §9 | `NEEDS_REVIEW` | 2026-10-10 | |
 | M2 | Rule engine and question planner | §9.2, §10 | `NEEDS_REVIEW` | 2026-10-17 | |
 | M3 | RAG retriever | §7, §8 | `NEEDS_REVIEW` | 2026-10-18 | |
-| M4 | LangGraph agent (text only) | §10, §11 | `IN_PROGRESS` | 2026-10-18 | |
+| M4 | LangGraph agent (text only) | §10, §11 | `NEEDS_REVIEW` | 2026-10-18 | |
 | M5 | Voice pipeline | §7, FR-1–3, FR-10 | `TODO` | | |
 | M6 | Web frontend | §14 M6 | `TODO` | | |
 | M7 | Forms and checklist | FR-8, FR-9 | `TODO` | | |
@@ -150,7 +150,7 @@
 
 ## M4 — LangGraph agent (text only)
 
-**Status:** `IN_PROGRESS`
+**Status:** `NEEDS_REVIEW`
 
 | ID | Task | Owner | Depends | Status | Notes |
 |---|---|---|---|---|---|
@@ -166,12 +166,12 @@
 | M4-T10 | PII detectors (Aadhaar-like, bank account, OTP, phone) used before logging and before saving profile; polite "not needed" reply. | CC | M4-T03 | `DONE` | `privacy/pii.py`: Aadhaar-like, bank account (9-18 digits or grouped near an account word), OTP (near OTP/password words), phone; Devanagari digits; last 4 kept; used by log redaction and `extract_profile`; "not needed" notice on replies; 31 tests (see D-037). 7e09136 |
 | M4-T11 | `handle_reset` node and graph edges per TRD §10. | CC | M4-T09 | `DONE` | `handle_reset` clears profile, tracking and stored messages (delete also ends the session in the API); every intent routed, later features get fixed replies; 17 graph tests. 8078973 |
 | M4-T12 | API: `POST /v1/sessions`, `/consent`, `/messages`, `GET /profile`, `DELETE /sessions/{id}`, `GET /v1/schemes[/{id}]`. | CC | M4-T11 | `DONE` | Sessions, consent (profile/sensitive; withdrawal erases), messages (row-locked turn, PII masked first, messages + profile saved, sliding 30-day expiry, polite error reply on LLM failure), profile, delete (incl. checkpoints), schemes list/detail; embedding cache fails open; 21 Postgres tests (see D-038). 3513efc |
-| M4-T13 | Simulated-user harness (LLM plays a fixed profile) + ~30 scripted dialogues in hi/mr/en; metrics: final accuracy, questions asked, turns. | CC | M4-T12 | `IN_PROGRESS` | |
+| M4-T13 | Simulated-user harness (LLM plays a fixed profile) + ~30 scripted dialogues in hi/mr/en; metrics: final accuracy, questions asked, turns. | CC | M4-T12 | `DONE` | 30 dialogues (10 hi / 10 mr / 10 en, one per checked persona); scripted user + fake LLM run all 30 in CI with an adversarial composer (engine agreement 100%, 0 violations); `sahayak eval --suite dialogues` with an LLM-played user live: 0 violations, 96.6% per-scheme accuracy, p50 turn 1.96 s, $1.46; 35 unit + 32 e2e tests (see D-040). b20d6d0 |
 | M4-T14 | Per-node tracing (latency, tokens, cost) visible in logs/traces. | CC | M4-T12 | `DONE` | `agent.<node>` and `agent.turn` spans; `agent_node` / `agent_turn` logs with latency, LLM calls, tokens and cost (list prices by model prefix); no text in logs or spans; 7 tests (see D-039). a360eb0 |
 
 **Exit criteria**
-- [ ] Full text conversation works end to end in hi, mr and en.
-- [ ] Scripted dialogue tests pass; no non-eligible scheme appears in any reply.
+- [x] Full text conversation works end to end in hi, mr and en. *2026-10-18, local Postgres (M1 index, 10 schemes with v1 draft rules, all `provisional`), multilingual-e5-large and gpt-4o: through the HTTP API (uvicorn) one conversation per language (consent gate, questions in the user's language, cited replies with the "not yet verified" caveat and last-verified dates, a follow-up scheme question, a phone number masked with the notice, profile view, delete), and the live dialogue eval (30 conversations, LLM-played users): 0 errors, turn latency p50 1.96 s.*
+- [x] Scripted dialogue tests pass; no non-eligible scheme appears in any reply. *All 30 scripted dialogues pass in CI (`tests/e2e/test_dialogues.py`): each ends with exactly the rule engine's schemes for the full profile, with at most 8 questions, while the fake composer names every scheme in every draft, so 0 such names reach a reply. The live run also had 0 violations. Accuracy against the checked labels (96.6% per scheme live, 97.7% scripted) is limited by the draft rules' known mistakes (D-028) until M1-T14.*
 
 ---
 
@@ -427,6 +427,7 @@ Claude Code adds one entry per completed milestone (newest first).
 
 | Date | Milestone | Summary | Commit |
 |---|---|---|---|
+| 2026-10-18 | M4 | LangGraph agent (text only): state + Postgres checkpointer (Alembic tables, strict deserialisation), one-call turn understanding + deterministic profile merge with contradictions and consent-gated sensitive fields, shortlist by state and need, rule engine with a state guard, strict filter (provisional drafts labelled), question planning with LLM wording and hi/mr/en fallbacks, per-scheme evidence and structured cited replies with a post-check (regenerate, then template), PII detectors, reset/delete, session/consent/message/profile/scheme API, per-node tracing with tokens and cost, 30-dialogue eval (scripted in CI, LLM-played live). 774 tests pass locally (3 Redis tests skip). Live: 0 violations, p50 turn 1.96 s. Decisions D-032 to D-040. Waiting for review. | c4a4f83 (branch `m4-agent`) |
 | 2026-10-18 | M3 | RAG retriever: filtered pgvector search (exact when restricted to schemes), OR-term full-text search (`english` / `simple`), RRF fusion to the top 5, LLM translation of hi/mr queries with all lists fused, 31-query retrieval eval with `sahayak eval --suite retrieval`. recall@5 0.919 (target 0.85). 491 tests pass locally (3 Redis tests skip). Decisions D-029 to D-031. Waiting for review. | 0f6745b (branch `m3-rag-retriever`) |
 | 2026-10-17 | M2 | `UserProfile`, full rule DSL with JSON Schema, three-valued evaluator, save-time validation, greedy question planner, 30-profile eval set and `sahayak eval` in CI. `eligibility/` coverage 100%. Eval on approved rules waits on M1-T14 and M2-T08. | d7122bd |
 | 2026-10-17 | M1 | Data layer and ingestion: ORM models + migration, LLM and embedding providers, prompt loader, manifest of 10 schemes, polite fetcher (with connect retry), HTML/PDF parsers, chunker, idempotent indexer, LLM rule drafting with a minimal rule DSL, `sahayak ingest` / `rules list` / `rules review`, end-to-end test. 280 tests pass (3 Redis tests skip locally). 10 schemes ingested locally and v1 rules drafted for all 10 with gpt-4o (OpenAI API, D-022); re-run is a no-op. Decisions D-011 to D-022. Waiting for review; rule approval is M1-T14. | aa49bf4 (branch `m1-data-ingestion`) |
