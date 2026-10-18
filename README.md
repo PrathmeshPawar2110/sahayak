@@ -134,8 +134,8 @@ curl -s localhost:8000/v1/sessions/$S/profile     # what Sahayak knows
 curl -s -X DELETE localhost:8000/v1/sessions/$S   # erase everything
 ```
 
-A reply is `{reply_text, kind, language, question_field, eligibility: {ready, action_needed,
-provisional}, citations[]}`. Messages need the `profile` consent; sensitive details (caste,
+A reply is `{reply_text, reply_audio_url, kind, language, question_field, eligibility: {ready,
+action_needed, provisional}, citations[]}`. Messages need the `profile` consent; sensitive details (caste,
 religion, disability) are asked and kept only with the `sensitive` consent, and withdrawing a
 consent erases what it covered. Aadhaar, bank account, OTP and phone numbers are masked out of
 messages before anything stores, logs or sends them (D-037, D-038). Until the M1 draft rules are
@@ -158,6 +158,40 @@ uv run sahayak eval --suite dialogues                    # LLM-played users (abo
 uv run sahayak eval --suite dialogues --user scripted --limit 3
 ```
 
+## Voice
+
+A voice turn is speech-to-text, the same agent turn as a text message, then speech (TRD §6).
+Sarvam AI does both by default (`saaras:v4` and `bulbul:v3`), with OpenAI as the fallback
+(`gpt-4o-mini-transcribe`, `gpt-4o-mini-tts`); set `SARVAM_API_KEY` (and `OPENAI_API_KEY` for the
+fallbacks) in `.env` (D-041). Audio is converted with PyAV, so no `ffmpeg` binary is needed.
+
+```sh
+curl -s -X POST localhost:8000/v1/sessions/$S/voice -F audio=@question.ogg -F audio_format=mp3
+# {transcript: {text, language, confidence}, reply_text, reply_audio_url, ..., latency: {...}}
+curl -s localhost:8000/v1/sessions/$S/messages/<reply id>/audio?format=ogg -o reply.ogg
+```
+
+- Recordings in WAV, MP3, OGG/Opus, WebM, MP4/M4A, FLAC or AAC, up to `MAX_VOICE_UPLOAD_MB`.
+  They are never stored: the masked transcript is.
+- Replies are spoken without citation markers, sources or URLs, and cached per sentence in Redis,
+  so repeated wording is synthesised once (D-042). Text replies get a `reply_audio_url` too.
+- If the recording can't be transcribed, the reply says so and asks the user to try again or
+  type. If speech synthesis fails, the text reply still comes back (`reply_audio_url: null`).
+- Speech-to-text detects the language and re-checks short answers in the conversation's
+  language. When the provider reports low confidence, nothing from that turn is saved until the
+  user confirms what was heard (FR-14, D-043).
+- `WS /v1/sessions/{id}/stream` takes 16-bit PCM and sends partial transcripts, the reply and
+  its audio sentence by sentence (protocol in `sahayak/channels/web_ws.py`, D-044).
+
+Latency and quality (D-045):
+
+```sh
+uv run sahayak latency api.log                 # p50/p95 per stage from LOG_FORMAT=json logs
+uv run sahayak eval --suite voice              # 30 spoken openings via upload and stream
+uv run sahayak eval --suite asr                # WER on 50 FLEURS hi/mr clips (downloads once)
+uv run sahayak eval --suite asr --stt whisper  # the same for the fallback
+```
+
 ### Windows notes
 
 - If the repo lives under OneDrive, set `UV_LINK_MODE=copy` (OneDrive rejects uv's hard links),
@@ -170,8 +204,10 @@ uv run sahayak eval --suite dialogues --user scripted --limit 3
   pgvector: start it with `pgserver.get_server(<data dir>, cleanup_mode=None)`, create a
   `sahayak_test` database, and point `TEST_DATABASE_URL` at it to run the integration tests.
 - Run the API with `--reload` (`uv run just dev`): uvicorn then uses the selector event loop,
-  which the checkpointer's driver (psycopg) needs on Windows. Without Redis the embedding cache
-  is skipped, after one slow connection attempt every 30 seconds.
+  which the checkpointer's driver (psycopg) needs on Windows. Without Redis the embedding and
+  TTS caches are skipped, after one slow connection attempt every 30 seconds. For a local
+  stand-in, `fakeredis.TcpFakeServer(("127.0.0.1", 6379)).serve_forever()` speaks the Redis
+  protocol (dev only; it keeps nothing on disk).
 
 ## Project layout
 

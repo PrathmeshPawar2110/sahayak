@@ -43,7 +43,7 @@
 | M2 | Rule engine and question planner | §9.2, §10 | `NEEDS_REVIEW` | 2026-10-17 | |
 | M3 | RAG retriever | §7, §8 | `NEEDS_REVIEW` | 2026-10-18 | |
 | M4 | LangGraph agent (text only) | §10, §11 | `NEEDS_REVIEW` | 2026-10-18 | |
-| M5 | Voice pipeline | §7, FR-1–3, FR-10 | `TODO` | | |
+| M5 | Voice pipeline | §7, FR-1–3, FR-10 | `NEEDS_REVIEW` | 2026-10-18 | |
 | M6 | Web frontend | §14 M6 | `TODO` | | |
 | M7 | Forms and checklist | FR-8, FR-9 | `TODO` | | |
 | M8 | WhatsApp channel | FR-11 | `TODO` | | |
@@ -177,24 +177,24 @@
 
 ## M5 — Voice pipeline
 
-**Status:** `TODO`
+**Status:** `NEEDS_REVIEW`
 
 | ID | Task | Owner | Depends | Status | Notes |
 |---|---|---|---|---|---|
-| M5-T01 | Get Sarvam AI API key (and optionally OpenAI key for Whisper fallback). | HUMAN | — | `TODO` | |
-| M5-T02 | Verify current Sarvam STT/TTS model names, endpoints, limits and audio formats; record as a decision. | CC | — | `TODO` | |
-| M5-T03 | `STTProvider` interface + Sarvam implementation (language hint, confidence) + Whisper fallback; shared contract test suite. | CC | M5-T01, M5-T02 | `TODO` | |
-| M5-T04 | `TTSProvider` interface + Sarvam implementation + fallback; output MP3/WAV (web) and OGG/Opus (WhatsApp) via ffmpeg. | CC | M5-T03 | `TODO` | |
-| M5-T05 | Redis TTS cache keyed by (text hash, voice, language). | CC | M5-T04 | `TODO` | |
-| M5-T06 | `POST /v1/sessions/{id}/voice` (multipart): STT → agent → TTS; returns transcript, text, audio URL. Text fallback when STT/TTS fails. | CC | M5-T04 | `TODO` | |
-| M5-T07 | Low-ASR-confidence handling: agent asks the user to confirm key values (FR-14). | CC | M5-T06 | `TODO` | |
-| M5-T08 | WebSocket `/v1/sessions/{id}/stream` for streaming audio in and partial transcript/audio out. | CC | M5-T06 | `TODO` | |
-| M5-T09 | Per-stage latency metrics (STT, agent, TTS) and p50/p95 report command. | CC | M5-T06 | `TODO` | |
-| M5-T10 | ASR eval: ~50 hi/mr clips with references (open datasets) → WER per language in the eval runner. | CC | M5-T03 | `TODO` | |
+| M5-T01 | Get Sarvam AI API key (and optionally OpenAI key for Whisper fallback). | HUMAN | — | `DONE` | Sarvam key from Prathmesh on 2026-10-18, in the local `.env` only (never committed); the OpenAI key (M0-T13) serves the fallbacks. |
+| M5-T02 | Verify current Sarvam STT/TTS model names, endpoints, limits and audio formats; record as a decision. | CC | — | `DONE` | Sarvam `saaras:v4` STT and `bulbul:v3` TTS (voice `shubh`) checked live against the docs: endpoints, fields, formats, limits, prices; OpenAI `gpt-4o-mini-transcribe` / `gpt-4o-mini-tts` as fallbacks (see D-041). 07cf7e1 |
+| M5-T03 | `STTProvider` interface + Sarvam implementation (language hint, confidence) + Whisper fallback; shared contract test suite. | CC | M5-T01, M5-T02 | `DONE` | `STTProvider` + `FallbackSTT`; Sarvam (detect, then re-check short or unsure answers with the conversation's language; no word confidence) and OpenAI (log-prob confidence); shared contract suite over 3 providers; 37 tests (see D-041, D-043). 07cf7e1 |
+| M5-T04 | `TTSProvider` interface + Sarvam implementation + fallback; output MP3/WAV (web) and OGG/Opus (WhatsApp) via ffmpeg. | CC | M5-T03 | `DONE` | `TTSProvider` + `FallbackTTS`; Sarvam and OpenAI; MP3/WAV/OGG-Opus with PyAV (no ffmpeg binary); contract suite; 27 TTS + 20 audio tests (see D-042). 07cf7e1 |
+| M5-T05 | Redis TTS cache keyed by (text hash, voice, language). | CC | M5-T04 | `DONE` | Sentence-level cache `tts:v1:<voice>:<lang>:<sha256>` (7 days), fails open, fallback audio not cached, forgotten on session delete; spoken text drops citations, sources, URLs; 14 tests (see D-042). 70fa0d4 |
+| M5-T06 | `POST /v1/sessions/{id}/voice` (multipart): STT → agent → TTS; returns transcript, text, audio URL. Text fallback when STT/TTS fails. | CC | M5-T04 | `DONE` | `POST /voice` (transcript, reply, audio URL, stage latency), `GET .../messages/{id}/audio?format=`, text replies get audio URLs; spoken notices when nothing is heard or STT fails; text-only on TTS failure; recordings never stored; 11 Postgres + 3 unit tests (see D-042). 1e5739b |
+| M5-T07 | Low-ASR-confidence handling: agent asks the user to confirm key values (FR-14). | CC | M5-T06 | `DONE` | Below `ASR_CONFIRM_THRESHOLD` a voice turn saves nothing new: values become `unclear_audio`, the transcript is read back, confirmed values saved (`turn_understanding@v2`); `FieldSource.confidence` from ASR; 7 tests (see D-043). fcc1e5a |
+| M5-T08 | WebSocket `/v1/sessions/{id}/stream` for streaming audio in and partial transcript/audio out. | CC | M5-T06 | `DONE` | `WS /stream`: PCM in, partial transcripts by re-transcription, final transcript, reply, audio per sentence, `done` with timings; 4 tests (see D-044). 1e5739b |
+| M5-T09 | Per-stage latency metrics (STT, agent, TTS) and p50/p95 report command. | CC | M5-T06 | `DONE` | `voice_turn` events (stage timings, no words); `sahayak latency [LOG...]` p50/p95/max per channel and stage; `sahayak eval --suite voice` round trip over HTTP; 4 unit + 3 Postgres tests (see D-045). 1fe6b3f |
+| M5-T10 | ASR eval: ~50 hi/mr clips with references (open datasets) → WER per language in the eval runner. | CC | M5-T03 | `DONE` | 50 FLEURS clips (25 hi, 25 mr, CC BY 4.0) in `evals/asr.jsonl`, streamed once and checksummed; `sahayak eval --suite asr` WER/CER (+ lenient) per language; Sarvam WER hi 6.4% / mr 13.0%, OpenAI 9.3% / 25.1%; 8 tests (see D-045). 1fe6b3f |
 
 **Exit criteria**
-- [ ] Voice round trip works locally in hi, mr and en.
-- [ ] p50 / p95 latency measured and logged (target p50 ≤ 3.5 s).
+- [x] Voice round trip works locally in hi, mr and en. *2026-10-18, `sahayak eval --suite voice`: the real app served by uvicorn (local Postgres with the M1 index, multilingual-e5-large, gpt-4o, Sarvam `saaras:v4` + `bulbul:v3`), 30 spoken dialogue openings (10 per language) each through `POST /voice` and the stream WebSocket: 60/60 turns answered with audio, every reply in the speaker's language. Live provider tests (`pytest -m live`) round-trip a sentence per language through Sarvam and OpenAI.*
+- [x] p50 / p95 latency measured and logged (target p50 ≤ 3.5 s). *Every voice turn logs `voice_turn` with STT/agent/TTS/total times; `sahayak latency` reproduces the table from the logs. Two runs, end of speech to first audio: **stream p50 2.96 s / 3.16 s, p95 4.30 s / 5.59 s** (TRD §5: p50 ≤ 3.5 s, p95 ≤ 6 s). Upload, waiting for the whole reply file: p50 3.30 s / 3.76 s, p95 7.07 s / 7.90 s, so the web app should use the stream (M6-T05). The agent's LLM calls are the largest stage (p50 1.9 s). ASR: Sarvam WER hi 6.4%, mr 13.0% on 50 FLEURS clips (D-045).*
 
 ---
 
@@ -427,6 +427,7 @@ Claude Code adds one entry per completed milestone (newest first).
 
 | Date | Milestone | Summary | Commit |
 |---|---|---|---|
+| 2026-10-18 | M5 | Voice pipeline: STT/TTS interfaces with retries and fallback chains; Sarvam `saaras:v4` (detect, re-check short answers in the conversation's language) and `bulbul:v3`, OpenAI as fallbacks; shared contract suites; PyAV for MP3/WAV/OGG-Opus; sentence-level Redis TTS cache; spoken text without citations or URLs; `POST /voice`, reply audio URLs (text turns too), spoken notices when nothing is heard, text-only on TTS failure; FR-14 read-back of unclear voice turns; stream WebSocket (PCM in, partial transcripts, audio per sentence); `voice_turn` timings and `sahayak latency`; ASR eval on 50 FLEURS clips; voice round-trip eval over HTTP. 915 tests pass locally with Postgres and a local Redis stand-in (0 skipped), plus 7 live speech tests. Stream first audio p50 2.96-3.16 s, p95 4.30-5.59 s; upload p95 misses 6 s. Sarvam WER hi 6.4% / mr 13.0%. Decisions D-041 to D-045. Waiting for review. | 1fe6b3f (branch `m5-voice`, stacked on `m4-agent`) |
 | 2026-10-18 | M4 | LangGraph agent (text only): state + Postgres checkpointer (Alembic tables, strict deserialisation), one-call turn understanding + deterministic profile merge with contradictions and consent-gated sensitive fields, shortlist by state and need, rule engine with a state guard, strict filter (provisional drafts labelled), question planning with LLM wording and hi/mr/en fallbacks, per-scheme evidence and structured cited replies with a post-check (regenerate, then template), PII detectors, reset/delete, session/consent/message/profile/scheme API, per-node tracing with tokens and cost, 30-dialogue eval (scripted in CI, LLM-played live). 774 tests pass locally (3 Redis tests skip). Live: 0 violations, p50 turn 1.96 s. Decisions D-032 to D-040. Waiting for review. | c4a4f83 (branch `m4-agent`) |
 | 2026-10-18 | M3 | RAG retriever: filtered pgvector search (exact when restricted to schemes), OR-term full-text search (`english` / `simple`), RRF fusion to the top 5, LLM translation of hi/mr queries with all lists fused, 31-query retrieval eval with `sahayak eval --suite retrieval`. recall@5 0.919 (target 0.85). 491 tests pass locally (3 Redis tests skip). Decisions D-029 to D-031. Waiting for review. | 0f6745b (branch `m3-rag-retriever`) |
 | 2026-10-17 | M2 | `UserProfile`, full rule DSL with JSON Schema, three-valued evaluator, save-time validation, greedy question planner, 30-profile eval set and `sahayak eval` in CI. `eligibility/` coverage 100%. Eval on approved rules waits on M1-T14 and M2-T08. | d7122bd |
