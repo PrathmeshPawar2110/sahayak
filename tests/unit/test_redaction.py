@@ -12,6 +12,9 @@ from sahayak.privacy.redaction import REDACTED, redact, redact_text
         ("call 9876543210 now", "call XXXXXX3210 now"),
         ("call +91 9876543210", "call XXXXXX3210"),
         ("call 09876543210", "call XXXXXX3210"),
+        # 9-18 digit runs may be bank account numbers (M4-T10)
+        ("order 12345678901234", "order XXXXXXXX1234"),
+        ("otp 482913", "otp XXXXXX"),
     ],
 )
 def test_redact_text_masks_identifiers_keeping_last_four(text: str, expected: str) -> None:
@@ -24,7 +27,6 @@ def test_redact_text_masks_identifiers_keeping_last_four(text: str, expected: st
         "income is 180000 rupees",
         "applied on 2026-07-01",
         "1234 5678 9012",  # Aadhaar numbers never start with 0 or 1
-        "order 12345678901234",  # longer digit runs are not phone or Aadhaar numbers
     ],
 )
 def test_redact_text_leaves_ordinary_numbers(text: str) -> None:

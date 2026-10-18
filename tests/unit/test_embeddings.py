@@ -174,6 +174,37 @@ async def test_cache_serves_repeated_texts_without_calling_the_provider(
     assert second[2] == pytest.approx(first[0], abs=1e-6)
 
 
+async def test_cache_fails_open_when_redis_is_down(monkeypatch: pytest.MonkeyPatch) -> None:
+    from redis.asyncio import Redis
+
+    down = Redis(host="127.0.0.1", port=1, socket_connect_timeout=0.2)
+    inner = FakeEmbeddingProvider()
+    clock = [0.0]
+    cached = CachedEmbeddingProvider(
+        inner, down, ttl_sec=60, retry_after_sec=30, monotonic=lambda: clock[0]
+    )
+    mget = down.mget
+    attempts = 0
+
+    async def counting_mget(*args: Any) -> Any:
+        nonlocal attempts
+        attempts += 1
+        return await mget(*args)
+
+    monkeypatch.setattr(down, "mget", counting_mget)
+    try:
+        vectors = await cached.embed_queries(["pension"])
+        await cached.embed_queries(["housing"])  # Redis is skipped for 30 s
+        assert attempts == 1
+        clock[0] = 31
+        await cached.embed_queries(["farmer"])  # then tried again
+        assert attempts == 2
+    finally:
+        await down.aclose()
+    assert vectors == await inner.embed_queries(["pension"])
+    assert inner.calls[0] == ("query", ["pension"])
+
+
 async def test_cache_only_computes_misses_once_each(redis: fakeredis.FakeAsyncRedis) -> None:
     inner = FakeEmbeddingProvider()
     cached = CachedEmbeddingProvider(inner, redis, ttl_sec=60)

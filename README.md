@@ -105,11 +105,58 @@ needs the ingested schemes and the embedding model, so it runs on demand, not in
 ```sh
 uv run sahayak eval --suite retrieval                    # with query translation (calls the LLM)
 uv run sahayak eval --suite retrieval --no-translate     # embeddings only
-uv run sahayak eval --suite all                          # eligibility + retrieval
+uv run sahayak eval --suite all                          # eligibility + retrieval + dialogues
 ```
 
 On the 10 M1 schemes it reaches recall@5 0.919 (target 0.85), with hit@1 0.871 using translation
 and 0.742 without.
+
+## Talking to the agent
+
+The agent is a LangGraph state machine (`sahayak.agent.graph`, TRD §10). Each turn: one LLM call
+reads the message (intent, language, stated facts, schemes named, English search text); the
+facts are validated and merged into the profile; candidate schemes are shortlisted and run
+through the rule engine; and then either the single question that settles the most schemes is
+asked, or a reply is written from cited scheme passages. Only schemes the engine finds
+`ELIGIBLE` are recommended, and a post-check rejects any reply that names another scheme, cites
+nothing, or states a different verdict (D-032 to D-036). Conversation state is kept per session
+by the Postgres checkpointer.
+
+```sh
+uv run just migrate && uv run just dev        # needs LLM settings in .env and ingested schemes
+S=$(curl -s -X POST localhost:8000/v1/sessions -H 'content-type: application/json' \
+      -d '{"language":"hi"}' | jq -r .session_id)
+curl -s -X POST localhost:8000/v1/sessions/$S/consent -H 'content-type: application/json' \
+      -d '{"purposes":["profile"],"policy_version":"2026-10"}'
+curl -s -X POST localhost:8000/v1/sessions/$S/messages -H 'content-type: application/json' \
+      -d '{"text":"मैं उत्तर प्रदेश का किसान हूँ, मेरे पास 3 एकड़ ज़मीन है"}'
+curl -s localhost:8000/v1/sessions/$S/profile     # what Sahayak knows
+curl -s -X DELETE localhost:8000/v1/sessions/$S   # erase everything
+```
+
+A reply is `{reply_text, kind, language, question_field, eligibility: {ready, action_needed,
+provisional}, citations[]}`. Messages need the `profile` consent; sensitive details (caste,
+religion, disability) are asked and kept only with the `sensitive` consent, and withdrawing a
+consent erases what it covered. Aadhaar, bank account, OTP and phone numbers are masked out of
+messages before anything stores, logs or sends them (D-037, D-038). Until the M1 draft rules are
+approved (M1-T14), every scheme is `provisional`: results are shown with a "not yet verified"
+note and the official link.
+
+Every node logs `agent_node` and every turn `agent_turn` with latency, LLM calls, tokens and cost
+(never message text), and runs in an OpenTelemetry span (D-039).
+
+### Dialogue eval
+
+[evals/dialogues.jsonl](evals/dialogues.jsonl) holds 30 conversations, 10 each in Hindi, Marathi
+and English, one per persona of the eligibility set (D-040). CI plays them all with a scripted
+user and a fake LLM (`tests/e2e/test_dialogues.py`): each must end with exactly the schemes the
+rules find on the full profile, and no reply may name a scheme the user can't get. Live, an LLM
+plays each persona against the real agent:
+
+```sh
+uv run sahayak eval --suite dialogues                    # LLM-played users (about 600 LLM calls)
+uv run sahayak eval --suite dialogues --user scripted --limit 3
+```
 
 ### Windows notes
 
@@ -122,6 +169,9 @@ and 0.742 without.
 - Without Docker, `pip install pgserver` in a separate venv gives a local Postgres 16 with
   pgvector: start it with `pgserver.get_server(<data dir>, cleanup_mode=None)`, create a
   `sahayak_test` database, and point `TEST_DATABASE_URL` at it to run the integration tests.
+- Run the API with `--reload` (`uv run just dev`): uvicorn then uses the selector event loop,
+  which the checkpointer's driver (psycopg) needs on Windows. Without Redis the embedding cache
+  is skipped, after one slow connection attempt every 30 seconds.
 
 ## Project layout
 

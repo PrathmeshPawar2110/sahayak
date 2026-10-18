@@ -1,10 +1,13 @@
+import asyncio
 import os
-from collections.abc import AsyncIterator
+import sys
+from collections.abc import AsyncIterator, Iterator
 
 import httpx
 import pytest
 from asgi_lifespan import LifespanManager
 from fastapi import FastAPI
+from langgraph.checkpoint.serde.event_hooks import SerdeEvent, register_serde_event_listener
 
 from sahayak.api.app import create_app
 from sahayak.config import Settings
@@ -13,6 +16,24 @@ TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+asyncpg://sahayak:sahayak@localhost:5432/sahayak_test"
 )
 TEST_REDIS_URL = os.environ.get("TEST_REDIS_URL", "redis://localhost:6379/15")
+
+if sys.platform == "win32":
+    # psycopg (the agent's checkpointer) can't run on Windows' default Proactor event loop.
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+
+@pytest.fixture(autouse=True)
+def _no_blocked_checkpoint_types() -> Iterator[None]:
+    """Fail any test in which the checkpointer refused to rebuild one of our own types: it
+    would be missing from `sahayak.agent.checkpoint.STATE_TYPES`."""
+    blocked: list[SerdeEvent] = []
+    unregister = register_serde_event_listener(
+        lambda event: blocked.append(event) if event["kind"].endswith("blocked") else None
+    )
+    yield
+    unregister()
+    ours = [f"{e['module']}.{e['name']}" for e in blocked if e["module"].startswith("sahayak.")]
+    assert not ours, f"checkpoint types not allowlisted: {ours}"
 
 
 @pytest.fixture(scope="session")

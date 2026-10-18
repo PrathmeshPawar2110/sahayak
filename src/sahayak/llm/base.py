@@ -17,6 +17,8 @@ import structlog
 from opentelemetry import trace
 from pydantic import BaseModel
 
+from sahayak.observability.usage import cost_usd, record_llm_usage
+
 log = structlog.get_logger(__name__)
 tracer = trace.get_tracer(__name__)
 
@@ -160,9 +162,14 @@ class LLMProvider(ABC):
                     await self._retry.sleep(delay)
                     continue
                 latency_ms = round((time.perf_counter() - started) * 1000)
-                span.set_attribute("llm.input_tokens", result.usage.input_tokens)
-                span.set_attribute("llm.output_tokens", result.usage.output_tokens)
+                usage = result.usage
+                cost = cost_usd(result.model, usage.input_tokens, usage.output_tokens)
+                record_llm_usage(result.model, usage.input_tokens, usage.output_tokens)
+                span.set_attribute("llm.input_tokens", usage.input_tokens)
+                span.set_attribute("llm.output_tokens", usage.output_tokens)
                 span.set_attribute("llm.attempts", attempt)
+                if cost is not None:
+                    span.set_attribute("llm.cost_usd", cost)
                 log.info(
                     "llm_call",
                     provider=self.name,
@@ -170,8 +177,9 @@ class LLMProvider(ABC):
                     operation=operation,
                     attempts=attempt,
                     latency_ms=latency_ms,
-                    input_tokens=result.usage.input_tokens,
-                    output_tokens=result.usage.output_tokens,
+                    input_tokens=usage.input_tokens,
+                    output_tokens=usage.output_tokens,
+                    cost_usd=None if cost is None else round(cost, 6),
                 )
                 return result
         raise AssertionError("unreachable: the loop returns or raises")  # pragma: no cover

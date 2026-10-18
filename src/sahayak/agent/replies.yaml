@@ -1,0 +1,285 @@
+# Fixed replies in every supported language. Used when no LLM wording is needed (notices, reset)
+# and as the fallback when LLM wording fails or doesn't pass its checks (TRD §10 guardrails).
+# Placeholders in {braces} are filled by `sahayak.agent.replies.render_reply`.
+# A unit test checks that every entry has en, hi and mr with the same placeholders, and that
+# every profile field has a question.
+
+questions:
+  state:
+    en: Which state do you live in?
+    hi: आप किस राज्य में रहते हैं?
+    mr: तुम्ही कोणत्या राज्यात राहता?
+  district:
+    en: Which district do you live in?
+    hi: आप किस ज़िले में रहते हैं?
+    mr: तुम्ही कोणत्या जिल्ह्यात राहता?
+  age:
+    en: How old are you?
+    hi: आपकी उम्र कितनी है?
+    mr: तुमचे वय किती आहे?
+  gender:
+    en: Are you a man, a woman, or other?
+    hi: आप पुरुष हैं, महिला हैं, या अन्य?
+    mr: तुम्ही पुरुष आहात, स्त्री आहात की इतर?
+  annual_family_income_inr:
+    en: What is your whole family's total income in a year, in rupees?
+    hi: आपके पूरे परिवार की साल भर की कुल आमदनी कितने रुपये है?
+    mr: तुमच्या संपूर्ण कुटुंबाचे वर्षभराचे एकूण उत्पन्न किती रुपये आहे?
+  social_category:
+    en: >-
+      Some schemes are only for certain categories. Would you like to share your category
+      (General, OBC, SC, ST, EWS, VJNT, SBC or NT)? You can skip this question.
+    hi: >-
+      कुछ योजनाएँ केवल कुछ वर्गों के लिए होती हैं। क्या आप अपना वर्ग (सामान्य, ओबीसी, एससी,
+      एसटी, ईडब्ल्यूएस, वीजेएनटी, एसबीसी या एनटी) बताना चाहेंगे? आप यह सवाल छोड़ भी सकते हैं।
+    mr: >-
+      काही योजना फक्त ठराविक प्रवर्गांसाठी असतात. तुम्ही तुमचा प्रवर्ग (खुला, ओबीसी, एससी,
+      एसटी, ईडब्ल्यूएस, व्हीजेएनटी, एसबीसी किंवा एनटी) सांगू इच्छिता का? हा प्रश्न तुम्ही वगळू शकता.
+  caste_name:
+    en: >-
+      Some schemes are only for certain castes. Would you like to tell me your caste? You can
+      skip this question.
+    hi: >-
+      कुछ योजनाएँ केवल कुछ जातियों के लिए होती हैं। क्या आप अपनी जाति बताना चाहेंगे? आप यह
+      सवाल छोड़ भी सकते हैं।
+    mr: >-
+      काही योजना फक्त ठराविक जातींसाठी असतात. तुम्ही तुमची जात सांगू इच्छिता का? हा प्रश्न
+      तुम्ही वगळू शकता.
+  caste_validity_verified:
+    en: Do you have a caste validity certificate from Maharashtra?
+    hi: क्या आपके पास महाराष्ट्र का जाति वैधता प्रमाणपत्र है?
+    mr: तुमच्याकडे महाराष्ट्राचे जात वैधता प्रमाणपत्र आहे का?
+  is_non_creamy_layer:
+    en: Do you belong to the non-creamy layer (do you have, or could you get, a non-creamy layer certificate)?
+    hi: क्या आप नॉन-क्रीमी लेयर में आते हैं (क्या आपके पास नॉन-क्रीमी लेयर प्रमाणपत्र है या मिल सकता है)?
+    mr: तुम्ही नॉन-क्रिमीलेयरमध्ये येता का (तुमच्याकडे नॉन-क्रिमीलेयर प्रमाणपत्र आहे किंवा मिळू शकते का)?
+  religion:
+    en: >-
+      Some schemes are only for minority communities. Would you like to share your religion?
+      You can skip this question.
+    hi: >-
+      कुछ योजनाएँ केवल अल्पसंख्यक समुदायों के लिए होती हैं। क्या आप अपना धर्म बताना चाहेंगे?
+      आप यह सवाल छोड़ भी सकते हैं।
+    mr: >-
+      काही योजना फक्त अल्पसंख्याक समुदायांसाठी असतात. तुम्ही तुमचा धर्म सांगू इच्छिता का? हा
+      प्रश्न तुम्ही वगळू शकता.
+  is_minority:
+    en: >-
+      Some schemes are only for notified minority communities. Do you belong to one? You can
+      skip this question.
+    hi: >-
+      कुछ योजनाएँ केवल अधिसूचित अल्पसंख्यक समुदायों के लिए होती हैं। क्या आप ऐसे किसी समुदाय
+      से हैं? आप यह सवाल छोड़ भी सकते हैं।
+    mr: >-
+      काही योजना फक्त अधिसूचित अल्पसंख्याक समुदायांसाठी असतात. तुम्ही अशा समुदायातील आहात का?
+      हा प्रश्न तुम्ही वगळू शकता.
+  domicile_state:
+    en: Which state are you a permanent resident (domicile) of?
+    hi: आप किस राज्य के स्थायी निवासी (डोमिसाइल) हैं?
+    mr: तुम्ही कोणत्या राज्याचे कायमचे रहिवासी (अधिवास) आहात?
+  disability_percent:
+    en: >-
+      Some schemes are for people with disabilities. If you have a disability certificate,
+      what percentage does it show? You can skip this question.
+    hi: >-
+      कुछ योजनाएँ दिव्यांग लोगों के लिए होती हैं। अगर आपके पास दिव्यांगता प्रमाणपत्र है, तो
+      उसमें कितना प्रतिशत लिखा है? आप यह सवाल छोड़ भी सकते हैं।
+    mr: >-
+      काही योजना दिव्यांग व्यक्तींसाठी असतात. तुमच्याकडे दिव्यांगत्व प्रमाणपत्र असल्यास त्यावर
+      किती टक्के लिहिले आहे? हा प्रश्न तुम्ही वगळू शकता.
+  current_course:
+    en: What course are you studying now?
+    hi: आप अभी कौन-सा कोर्स पढ़ रहे हैं?
+    mr: तुम्ही सध्या कोणता अभ्यासक्रम शिकत आहात?
+  marks_percent:
+    en: What percentage of marks did you get in your last exam?
+    hi: आपकी पिछली परीक्षा में कितने प्रतिशत अंक आए थे?
+    mr: तुम्हाला मागील परीक्षेत किती टक्के गुण मिळाले?
+  occupation:
+    en: >-
+      What is your main work? For example: farmer, farm labourer, daily-wage worker, street
+      vendor, artisan, student, salaried job, own business, homemaker, or no work.
+    hi: >-
+      आपका मुख्य काम क्या है? जैसे: किसान, खेतिहर मज़दूर, दिहाड़ी मज़दूर, रेहड़ी-पटरी विक्रेता,
+      कारीगर, विद्यार्थी, नौकरी, अपना काम-धंधा, गृहिणी, या कोई काम नहीं।
+    mr: >-
+      तुमचे मुख्य काम कोणते आहे? उदा.: शेतकरी, शेतमजूर, रोजंदारी कामगार, फेरीवाले, कारागीर,
+      विद्यार्थी, नोकरी, स्वतःचा व्यवसाय, गृहिणी, किंवा काही काम नाही.
+  land_holding_acres:
+    en: How much farm land do you own, in acres? Say 0 if you own none.
+    hi: आपके पास कितने एकड़ खेती की ज़मीन है? अगर नहीं है तो 0 बताइए।
+    mr: तुमच्याकडे किती एकर शेतजमीन आहे? नसल्यास 0 सांगा.
+  is_bpl:
+    en: Is your family below the poverty line (BPL)?
+    hi: क्या आपका परिवार गरीबी रेखा से नीचे (बीपीएल) है?
+    mr: तुमचे कुटुंब दारिद्र्यरेषेखालील (बीपीएल) आहे का?
+  has_ration_card:
+    en: "Which ration card does your family have: AAY, priority household (PHH), BPL, APL, or none?"
+    hi: "आपके परिवार के पास कौन-सा राशन कार्ड है: अंत्योदय (AAY), प्राथमिकता परिवार (PHH), बीपीएल, एपीएल, या कोई नहीं?"
+    mr: "तुमच्या कुटुंबाकडे कोणते रेशन कार्ड आहे: अंत्योदय (AAY), प्राधान्य कुटुंब (PHH), बीपीएल, एपीएल, की नाही?"
+  disability:
+    en: >-
+      Some schemes are for people with disabilities. Do you have a disability? You can skip
+      this question.
+    hi: >-
+      कुछ योजनाएँ दिव्यांग लोगों के लिए होती हैं। क्या आप दिव्यांग हैं? आप यह सवाल छोड़ भी
+      सकते हैं।
+    mr: >-
+      काही योजना दिव्यांग व्यक्तींसाठी असतात. तुम्ही दिव्यांग आहात का? हा प्रश्न तुम्ही वगळू
+      शकता.
+  is_income_tax_payer:
+    en: Does anyone in your family pay income tax?
+    hi: क्या आपके परिवार में कोई आयकर (इनकम टैक्स) भरता है?
+    mr: तुमच्या कुटुंबात कोणी आयकर (इन्कम टॅक्स) भरते का?
+  is_govt_employee:
+    en: Are you a serving or retired government employee?
+    hi: क्या आप सरकारी कर्मचारी हैं या रह चुके हैं?
+    mr: तुम्ही सरकारी कर्मचारी आहात किंवा होता का?
+  marital_status:
+    en: Are you single, married, widowed or divorced?
+    hi: आप अविवाहित हैं, विवाहित हैं, विधवा/विधुर हैं या तलाकशुदा?
+    mr: तुम्ही अविवाहित, विवाहित, विधवा/विधुर की घटस्फोटित आहात?
+  num_children:
+    en: How many children do you have?
+    hi: आपके कितने बच्चे हैं?
+    mr: तुम्हाला किती मुले आहेत?
+  education_level:
+    en: What is the highest level you have studied to?
+    hi: आपने सबसे ज़्यादा कहाँ तक पढ़ाई की है?
+    mr: तुमचे सर्वाधिक शिक्षण कुठपर्यंत झाले आहे?
+  residence:
+    en: Do you live in a village (rural area) or in a town or city?
+    hi: आप गाँव में रहते हैं या शहर में?
+    mr: तुम्ही गावात राहता की शहरात?
+
+messages:
+  confirm:
+    en: "Just to check: earlier you said {old}, and now {new}. Which one is correct?"
+    hi: "एक बार पक्का कर लें: पहले आपने {old} बताया था, और अब {new}। इनमें से कौन-सा सही है?"
+    mr: "एकदा खात्री करूया: आधी तुम्ही {old} सांगितले होते, आणि आता {new}. यापैकी कोणते बरोबर आहे?"
+  answer_yes:
+    en: "yes"
+    hi: "हाँ"
+    mr: "हो"
+  answer_no:
+    en: "no"
+    hi: "नहीं"
+    mr: "नाही"
+  pii_notice:
+    en: >-
+      Please don't share Aadhaar, bank account, OTP or phone numbers here. I don't need them,
+      and I have not saved them.
+    hi: >-
+      कृपया यहाँ आधार, बैंक खाता, ओटीपी या फ़ोन नंबर न लिखें। मुझे इनकी ज़रूरत नहीं है, और
+      मैंने इन्हें सेव नहीं किया है।
+    mr: >-
+      कृपया येथे आधार, बँक खाते, ओटीपी किंवा फोन नंबर लिहू नका. मला त्यांची गरज नाही, आणि मी
+      ते जतन केलेले नाहीत.
+  reset:
+    en: >-
+      I've cleared what you told me. Let's start again: tell me a little about yourself, or
+      ask about a scheme.
+    hi: >-
+      आपने जो बताया था, वह मैंने मिटा दिया है। चलिए फिर से शुरू करते हैं: अपने बारे में थोड़ा
+      बताइए, या किसी योजना के बारे में पूछिए।
+    mr: >-
+      तुम्ही सांगितलेली माहिती मी पुसून टाकली आहे. चला पुन्हा सुरुवात करूया: तुमच्याबद्दल
+      थोडे सांगा, किंवा एखाद्या योजनेबद्दल विचारा.
+  deleted:
+    en: Your conversation and the details you shared have been deleted.
+    hi: आपकी बातचीत और आपके दिए गए सभी विवरण मिटा दिए गए हैं।
+    mr: तुमचे संभाषण आणि तुम्ही दिलेली सर्व माहिती हटवण्यात आली आहे.
+  smalltalk:
+    en: >-
+      I'm Sahayak. I can help you find government schemes you may qualify for. Tell me a
+      little about yourself, or ask about a scheme.
+    hi: >-
+      मैं सहायक हूँ। मैं आपको वे सरकारी योजनाएँ ढूँढने में मदद कर सकता हूँ जिनके लिए आप पात्र
+      हो सकते हैं। अपने बारे में थोड़ा बताइए, या किसी योजना के बारे में पूछिए।
+    mr: >-
+      मी सहायक आहे. तुम्ही पात्र असू शकाल अशा सरकारी योजना शोधायला मी मदत करू शकतो.
+      तुमच्याबद्दल थोडे सांगा, किंवा एखाद्या योजनेबद्दल विचारा.
+  out_of_scope:
+    en: >-
+      Sorry, I can only help with government schemes: finding ones you may qualify for, and
+      explaining their benefits and documents.
+    hi: >-
+      माफ़ कीजिए, मैं केवल सरकारी योजनाओं में मदद कर सकता हूँ: आपके लिए योजनाएँ ढूँढना, और
+      उनके लाभ व ज़रूरी दस्तावेज़ समझाना।
+    mr: >-
+      माफ करा, मी फक्त सरकारी योजनांबाबत मदत करू शकतो: तुमच्यासाठी योजना शोधणे, आणि त्यांचे
+      लाभ व आवश्यक कागदपत्रे समजावून सांगणे.
+  not_available:
+    en: >-
+      Saving documents and reminders are coming soon. For now, I can help you find schemes and
+      explain them.
+    hi: >-
+      दस्तावेज़ सेव करने और रिमाइंडर की सुविधा जल्द आ रही है। अभी मैं योजनाएँ ढूँढने और
+      समझाने में मदद कर सकता हूँ।
+    mr: >-
+      कागदपत्रे जतन करणे आणि स्मरणपत्रांची सुविधा लवकरच येत आहे. सध्या मी योजना शोधायला आणि
+      समजावून सांगायला मदत करू शकतो.
+  form_not_available:
+    en: Filled-in draft application forms are coming soon.
+    hi: भरे हुए आवेदन पत्र का ड्राफ़्ट जल्द उपलब्ध होगा।
+    mr: भरलेल्या अर्जाचा मसुदा लवकरच उपलब्ध होईल.
+  provisional_caveat:
+    en: >-
+      Not yet verified: my check for {name} uses rules our team has not reviewed yet. Please
+      confirm at {url}
+    hi: >-
+      अभी सत्यापित नहीं: {name} के लिए मेरी जाँच ऐसे नियमों पर आधारित है जिनकी हमारी टीम ने
+      अभी समीक्षा नहीं की है। कृपया {url} पर पुष्टि करें।
+    mr: >-
+      अजून पडताळलेले नाही: {name} साठीची माझी तपासणी आमच्या टीमने अजून न तपासलेल्या नियमांवर
+      आधारित आहे. कृपया {url} येथे खात्री करा.
+  provisional_caveat_no_link:
+    en: >-
+      Not yet verified: my check for {name} uses rules our team has not reviewed yet. Please
+      confirm with the official office.
+    hi: >-
+      अभी सत्यापित नहीं: {name} के लिए मेरी जाँच ऐसे नियमों पर आधारित है जिनकी हमारी टीम ने
+      अभी समीक्षा नहीं की है। कृपया संबंधित सरकारी कार्यालय से पुष्टि करें।
+    mr: >-
+      अजून पडताळलेले नाही: {name} साठीची माझी तपासणी आमच्या टीमने अजून न तपासलेल्या नियमांवर
+      आधारित आहे. कृपया संबंधित सरकारी कार्यालयात खात्री करा.
+  results_intro:
+    en: "Based on what you told me, you may be eligible for:"
+    hi: "आपने जो बताया उसके आधार पर, आप इन योजनाओं के लिए पात्र हो सकते हैं:"
+    mr: "तुम्ही दिलेल्या माहितीनुसार, तुम्ही या योजनांसाठी पात्र असू शकता:"
+  provisional_intro:
+    en: "Not yet verified, but you may qualify for:"
+    hi: "अभी सत्यापित नहीं, पर आप इनके लिए पात्र हो सकते हैं:"
+    mr: "अजून पडताळलेले नाही, पण तुम्ही यांसाठी पात्र असू शकता:"
+  no_results:
+    en: With the details you have shared so far, I could not find a scheme you qualify for yet.
+    hi: अब तक आपने जो जानकारी दी है, उसके आधार पर मुझे अभी कोई ऐसी योजना नहीं मिली जिसके लिए आप पात्र हों।
+    mr: तुम्ही आतापर्यंत दिलेल्या माहितीनुसार, तुम्ही पात्र असाल अशी कोणतीही योजना मला अजून सापडली नाही.
+  verdict_eligible:
+    en: "{name}: you may be eligible."
+    hi: "{name}: आप पात्र हो सकते हैं।"
+    mr: "{name}: तुम्ही पात्र असू शकता."
+  verdict_not_eligible:
+    en: "{name}: based on what you told me, you are not eligible."
+    hi: "{name}: आपकी दी गई जानकारी के अनुसार आप पात्र नहीं हैं।"
+    mr: "{name}: तुम्ही दिलेल्या माहितीनुसार तुम्ही पात्र नाही."
+  verdict_needs_info:
+    en: "{name}: I need a few more details to check this."
+    hi: "{name}: इसकी जाँच के लिए मुझे थोड़ी और जानकारी चाहिए।"
+    mr: "{name}: हे तपासण्यासाठी मला आणखी थोडी माहिती हवी आहे."
+  read_more:
+    en: "Read more: {url}"
+    hi: "अधिक जानकारी: {url}"
+    mr: "अधिक माहिती: {url}"
+  sources:
+    en: Sources
+    hi: स्रोत
+    mr: स्रोत
+  verified_on:
+    en: "last verified {date}"
+    hi: "अंतिम पुष्टि {date}"
+    mr: "शेवटची पडताळणी {date}"
+  error:
+    en: Sorry, I'm having trouble right now. Please try again in a moment.
+    hi: माफ़ कीजिए, अभी कुछ दिक्कत आ रही है। कृपया थोड़ी देर में फिर कोशिश करें।
+    mr: माफ करा, सध्या काही अडचण येत आहे. कृपया थोड्या वेळाने पुन्हा प्रयत्न करा.

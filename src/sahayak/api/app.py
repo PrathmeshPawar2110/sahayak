@@ -1,13 +1,15 @@
 """FastAPI application factory. Run with `uvicorn sahayak.api.app:create_app --factory`."""
 
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator, Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 
 from fastapi import FastAPI
 from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sahayak import __version__
-from sahayak.api import health
+from sahayak.agent.service import AgentService, agent_service
+from sahayak.api import health, schemes, sessions
 from sahayak.api.errors import ErrorEnvelope, register_error_handlers
 from sahayak.api.readiness import postgres_check, redis_check
 from sahayak.config import Settings, get_settings
@@ -16,9 +18,16 @@ from sahayak.observability.logging import configure_logging
 from sahayak.observability.middleware import RequestIdMiddleware
 from sahayak.observability.tracing import configure_tracing, instrument_app
 
+# Builds the agent for the app's lifetime (tests pass one with fakes).
+AgentFactory = Callable[
+    [Settings, async_sessionmaker[AsyncSession], Redis],
+    AbstractAsyncContextManager[AgentService],
+]
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+
+def create_app(settings: Settings | None = None, *, agent: AgentFactory | None = None) -> FastAPI:
     settings = settings or get_settings()
+    agent_factory = agent or agent_service
     configure_logging(settings)
     tracer_provider = configure_tracing(settings)
 
@@ -27,15 +36,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # Neither call opens a connection; the first query / readiness probe does.
         engine = create_engine(settings)
         redis = Redis.from_url(settings.redis_url)
+        session_factory = create_session_factory(engine)
         app.state.db_engine = engine
-        app.state.session_factory = create_session_factory(engine)
+        app.state.session_factory = session_factory
         app.state.redis = redis
         app.state.readiness_checks = {
             "postgres": postgres_check(engine),
             "redis": redis_check(redis),
         }
         try:
-            yield
+            async with agent_factory(settings, session_factory, redis) as service:
+                app.state.agent = service
+                yield
         finally:
             await redis.aclose()
             await engine.dispose()
@@ -54,6 +66,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_error_handlers(app)
     app.add_middleware(RequestIdMiddleware)
     app.include_router(health.router)
+    app.include_router(sessions.router)
+    app.include_router(schemes.router)
 
     instrument_app(app, tracer_provider)
     return app
