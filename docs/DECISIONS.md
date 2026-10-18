@@ -313,7 +313,7 @@ Record one entry per decision, newest last. Reference them from `IMPLEMENTATION.
 
 - **Date:** 2026-10-17
 - **Task:** M2-T07
-- **Status:** accepted (labels pending the human check in M2-T08)
+- **Status:** accepted (all 30 labels and the judgement calls below approved by Prathmesh on 2026-10-18, M2-T08)
 - **Context:** TRD §12.1 asks for programmatically generated profiles with hand-checked labels. If the labels came from the rules under test, the eval would always pass. Many official criteria can't be expressed with `UserProfile` fields.
 - **Decision:**
   - **Independent reference.** `sahayak.evals.reference` writes each scheme's criteria again in plain Python (its own three-valued logic, not the engine or the DSL), from the official source text in the manifest. It labels 30 hand-designed personas: typical citizens, boundary variants (ages 9/10, 17/18, 40/41, 21, 65/66, 70; incomes exactly at and Rs 1 over Rs 1,80,000 and Rs 2,50,000) and four profiles with missing fields. Every scheme gets ELIGIBLE, NOT_ELIGIBLE and NEEDS_INFO labels. Each label carries a one-line reason. `label_status` is `generated` until a human checks it and sets `checked`. The generator refuses to overwrite checked labels, and a test keeps unchecked labels equal to the generator.
