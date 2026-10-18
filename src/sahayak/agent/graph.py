@@ -21,10 +21,12 @@ from langgraph.runtime import Runtime
 from sahayak.agent.deps import AgentDeps
 from sahayak.agent.nodes.check_eligibility import check_eligibility
 from sahayak.agent.nodes.classify_intent import classify_intent
+from sahayak.agent.nodes.compose_response import compose_response
 from sahayak.agent.nodes.extract_profile import extract_profile
 from sahayak.agent.nodes.filter_results import filter_results
 from sahayak.agent.nodes.load_user_context import load_user_context
 from sahayak.agent.nodes.plan_question import plan_question
+from sahayak.agent.nodes.retrieve_evidence import retrieve_evidence
 from sahayak.agent.nodes.shortlist_schemes import shortlist_schemes
 from sahayak.agent.questions import should_ask
 from sahayak.agent.state import AgentState
@@ -61,12 +63,9 @@ def build_graph(checkpointer: BaseCheckpointSaver[Any] | None = None) -> AgentGr
     graph.add_node("check_eligibility", check_eligibility)
     graph.add_node("filter_results", filter_results)
     graph.add_node("plan_question", plan_question)
-    for name in (
-        "retrieve_evidence",
-        "compose_response",
-        "handle_reset",
-    ):
-        graph.add_node(name, _pending)
+    graph.add_node("retrieve_evidence", retrieve_evidence)
+    graph.add_node("compose_response", compose_response)
+    graph.add_node("handle_reset", _pending)
 
     graph.add_edge(START, "load_user_context")
     graph.add_edge("load_user_context", "classify_intent")
