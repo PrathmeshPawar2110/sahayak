@@ -155,38 +155,46 @@ def understood(
 Responder = Callable[[FakeCall], Reply]
 
 
-def agent_llm(
-    understandings: Sequence[dict[str, Any]] = (),
-    *,
-    others: dict[type, Responder] | None = None,
-) -> FakeLLMProvider:
-    """A fake LLM for the agent: turn-understanding replies in order, other schemas by responder.
-
-    With no understanding left, every turn reads as a bare "discover". Question wording and
-    replies default to short fixed texts that pass the checks.
+class AgentFakeLLM(FakeLLMProvider):
+    """A fake LLM for the agent: turn-understanding replies from `queue` in order (append more at
+    any time), other schemas by responder. With the queue empty, every turn reads as a bare
+    "discover". Question wording and replies default to short fixed texts that pass the checks.
     """
-    from sahayak.agent.guardrails import ComposedReply
-    from sahayak.agent.nodes.plan_question import QuestionWording
 
-    queue = list(understandings)
-    defaults: dict[type, Responder] = {
-        QuestionWording: lambda call: {"question": "Could you tell me more?"},
-        ComposedReply: lambda call: {
-            "opening": "Here is what I found.",
-            "points": [],
-            "closing": "",
-        },
-    }
-    responders = {**defaults, **(others or {})}
+    def __init__(
+        self,
+        understandings: Sequence[Reply] = (),
+        others: dict[type, Responder] | None = None,
+    ) -> None:
+        from sahayak.agent.guardrails import ComposedReply
+        from sahayak.agent.nodes.plan_question import QuestionWording
 
-    def reply(call: FakeCall) -> Reply:
+        self.queue: list[Reply] = list(understandings)
+        defaults: dict[type, Responder] = {
+            QuestionWording: lambda call: {"question": "Could you tell me more?"},
+            ComposedReply: lambda call: {
+                "opening": "Here is what I found.",
+                "points": [],
+                "closing": "",
+            },
+        }
+        self._responders = {**defaults, **(others or {})}
+        super().__init__(self._reply)
+
+    def _reply(self, call: FakeCall) -> Reply:
         if call.schema is TurnUnderstanding:
-            return queue.pop(0) if queue else understood()
-        if call.schema in responders:
-            return responders[call.schema](call)
+            return self.queue.pop(0) if self.queue else understood()
+        if call.schema in self._responders:
+            return self._responders[call.schema](call)
         raise AssertionError(f"unexpected LLM call for {call.schema}")
 
-    return FakeLLMProvider(reply)
+
+def agent_llm(
+    understandings: Sequence[Reply] = (),
+    *,
+    others: dict[type, Responder] | None = None,
+) -> AgentFakeLLM:
+    return AgentFakeLLM(understandings, others)
 
 
 M1_FIXTURE = Path(__file__).parent / "e2e" / "fixtures" / "m1_catalogue.json"

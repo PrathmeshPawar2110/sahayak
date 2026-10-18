@@ -258,6 +258,10 @@ class Session(Base):
     # Salted SHA-256 of the sender's phone number; never the raw number.
     channel_user_hash: Mapped[str | None] = mapped_column(String(64), index=True)
     language: Mapped[Language | None] = mapped_column(_str_enum(Language, "session_language"))
+    # Granted purposes (TRD §5 Privacy): {"profile": {"granted_at": ..., "policy_version": ...}}
+    consents: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, server_default=sql_text("'{}'::jsonb"), default=dict
+    )
     created_at: Mapped[datetime] = _created_at()
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 

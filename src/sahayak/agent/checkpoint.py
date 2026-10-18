@@ -68,6 +68,7 @@ async def postgres_checkpointer(
     """A checkpointer on its own psycopg pool, closed on exit."""
     async with AsyncConnectionPool(
         psycopg_conninfo(database_url),
+        min_size=0,  # connect on first use, not at startup
         max_size=max_connections,
         # What AsyncPostgresSaver expects: autocommit, dict rows, no server-side prepares
         # (they break behind transaction-mode poolers such as PgBouncer).

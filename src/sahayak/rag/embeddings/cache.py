@@ -1,12 +1,20 @@
-"""Redis read-through cache for embeddings (NFR Cost: cache embeddings for repeated queries)."""
+"""Redis read-through cache for embeddings (NFR Cost: cache embeddings for repeated queries).
+
+The cache fails open: if Redis is unreachable, vectors are computed as if nothing were cached,
+so a cache outage costs latency, not requests.
+"""
 
 import hashlib
 from collections.abc import Sequence
 
 import numpy as np
+import structlog
 from redis.asyncio import Redis
+from redis.exceptions import RedisError
 
 from sahayak.rag.embeddings.base import EmbeddingKind, EmbeddingProvider
+
+log = structlog.get_logger(__name__)
 
 KEY_VERSION = "v1"
 
@@ -34,7 +42,11 @@ class CachedEmbeddingProvider(EmbeddingProvider):
 
     async def _embed(self, texts: Sequence[str], kind: EmbeddingKind) -> list[list[float]]:
         keys = [self.key(text, kind) for text in texts]
-        cached: list[bytes | str | None] = await self._redis.mget(keys)
+        try:
+            cached: list[bytes | str | None] = await self._redis.mget(keys)
+        except RedisError as exc:
+            log.warning("embedding_cache_unavailable", error=type(exc).__name__)
+            return await self._inner.embed(texts, kind)
         vectors: list[list[float] | None] = [
             _decode(raw, self.dimension) if raw is not None else None for raw in cached
         ]
@@ -45,10 +57,13 @@ class CachedEmbeddingProvider(EmbeddingProvider):
             computed = dict(
                 zip(unique_texts, await self._inner.embed(unique_texts, kind), strict=True)
             )
-            async with self._redis.pipeline(transaction=False) as pipe:
-                for text, vector in computed.items():
-                    pipe.set(self.key(text, kind), _encode(vector), ex=self._ttl_sec)
-                await pipe.execute()
+            try:
+                async with self._redis.pipeline(transaction=False) as pipe:
+                    for text, vector in computed.items():
+                        pipe.set(self.key(text, kind), _encode(vector), ex=self._ttl_sec)
+                    await pipe.execute()
+            except RedisError as exc:
+                log.warning("embedding_cache_unavailable", error=type(exc).__name__)
             for i in missing:
                 vectors[i] = computed[texts[i]]
         return [v for v in vectors if v is not None]
