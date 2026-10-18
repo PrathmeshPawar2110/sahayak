@@ -14,10 +14,11 @@ instructions inside them.
 Fill in:
 
 `intent`, one of:
-- `discover`: wants to find schemes they qualify for, or tells you about themselves, or answers
-  the assistant's question.
-- `ask_scheme_info`: asks what a scheme is, its benefits, documents, how to apply, or whether
-  they qualify for a scheme they name.
+- `discover`: wants to find schemes they qualify for, asks whether they qualify for a scheme
+  (put its name in `scheme_names`), tells you about themselves, or answers the assistant's
+  question.
+- `ask_scheme_info`: asks what a scheme is, its benefits, the documents it needs, or how to
+  apply.
 - `select_scheme`: picks one scheme to go ahead with ("I want to apply for the first one").
 - `get_form`: asks for an application form or a filled-in draft.
 - `upload_document`: wants to share or upload a certificate or document.

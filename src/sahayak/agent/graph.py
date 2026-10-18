@@ -24,7 +24,9 @@ from sahayak.agent.nodes.classify_intent import classify_intent
 from sahayak.agent.nodes.extract_profile import extract_profile
 from sahayak.agent.nodes.filter_results import filter_results
 from sahayak.agent.nodes.load_user_context import load_user_context
+from sahayak.agent.nodes.plan_question import plan_question
 from sahayak.agent.nodes.shortlist_schemes import shortlist_schemes
+from sahayak.agent.questions import should_ask
 from sahayak.agent.state import AgentState
 
 type AgentGraph = CompiledStateGraph[AgentState, AgentDeps, AgentState, AgentState]
@@ -44,8 +46,8 @@ def route_intent(state: AgentState) -> str:
     return "compose_response"
 
 
-def route_results(state: AgentState) -> str:
-    return "retrieve_evidence"
+def route_results(state: AgentState, runtime: Runtime[AgentDeps]) -> str:
+    return "plan_question" if should_ask(state, runtime.context.config) else "retrieve_evidence"
 
 
 def build_graph(checkpointer: BaseCheckpointSaver[Any] | None = None) -> AgentGraph:
@@ -58,8 +60,8 @@ def build_graph(checkpointer: BaseCheckpointSaver[Any] | None = None) -> AgentGr
     graph.add_node("shortlist_schemes", shortlist_schemes)
     graph.add_node("check_eligibility", check_eligibility)
     graph.add_node("filter_results", filter_results)
+    graph.add_node("plan_question", plan_question)
     for name in (
-        "plan_question",
         "retrieve_evidence",
         "compose_response",
         "handle_reset",
