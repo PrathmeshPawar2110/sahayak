@@ -1,4 +1,6 @@
+import asyncio
 import os
+import sys
 from collections.abc import AsyncIterator
 
 import httpx
@@ -13,6 +15,10 @@ TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+asyncpg://sahayak:sahayak@localhost:5432/sahayak_test"
 )
 TEST_REDIS_URL = os.environ.get("TEST_REDIS_URL", "redis://localhost:6379/15")
+
+if sys.platform == "win32":
+    # psycopg (the agent's checkpointer) can't run on Windows' default Proactor event loop.
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
 @pytest.fixture(scope="session")

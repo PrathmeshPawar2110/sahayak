@@ -42,7 +42,7 @@
 | M1 | Data layer and ingestion | §8, §9 | `NEEDS_REVIEW` | 2026-10-10 | |
 | M2 | Rule engine and question planner | §9.2, §10 | `NEEDS_REVIEW` | 2026-10-17 | |
 | M3 | RAG retriever | §7, §8 | `NEEDS_REVIEW` | 2026-10-18 | |
-| M4 | LangGraph agent (text only) | §10, §11 | `TODO` | | |
+| M4 | LangGraph agent (text only) | §10, §11 | `IN_PROGRESS` | 2026-10-18 | |
 | M5 | Voice pipeline | §7, FR-1–3, FR-10 | `TODO` | | |
 | M6 | Web frontend | §14 M6 | `TODO` | | |
 | M7 | Forms and checklist | FR-8, FR-9 | `TODO` | | |
@@ -150,11 +150,11 @@
 
 ## M4 — LangGraph agent (text only)
 
-**Status:** `TODO`
+**Status:** `IN_PROGRESS`
 
 | ID | Task | Owner | Depends | Status | Notes |
 |---|---|---|---|---|---|
-| M4-T01 | `AgentState` (TRD §10) and graph skeleton with the Postgres checkpointer. | CC | M2, M3 | `TODO` | |
+| M4-T01 | `AgentState` (TRD §10) and graph skeleton with the Postgres checkpointer. | CC | M2, M3 | `IN_PROGRESS` | |
 | M4-T02 | `classify_intent` node (structured output; language detection/confirmation). | CC | M4-T01 | `TODO` | |
 | M4-T03 | `extract_profile` node: merges new facts into `UserProfile` with `FieldSource`; flags contradictions. | CC | M4-T01 | `TODO` | |
 | M4-T04 | `shortlist_schemes` node: state filter + hybrid retrieval on stated need; excludes discontinued/archived. | CC | M4-T01 | `TODO` | |

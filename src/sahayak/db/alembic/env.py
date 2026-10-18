@@ -6,6 +6,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import Connection, pool
 from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.schema import SchemaItem
 
 import sahayak.db.models  # noqa: F401  (registers tables on Base.metadata)
 from sahayak.config import get_settings
@@ -17,6 +18,19 @@ if config.config_file_name is not None and config.attributes.get("configure_logg
     fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
+
+# Tables owned by LangGraph's Postgres checkpointer (created by revision 0003, not ORM models).
+UNMANAGED_TABLES = frozenset(
+    {"checkpoints", "checkpoint_blobs", "checkpoint_writes", "checkpoint_migrations"}
+)
+
+
+def include_object(
+    item: SchemaItem, name: str | None, type_: str, reflected: bool, compare_to: object
+) -> bool:
+    """Leave unmanaged tables (and their indexes) out of autogenerate and `alembic check`."""
+    table = getattr(item, "table", item)
+    return getattr(table, "name", name) not in UNMANAGED_TABLES
 
 
 def database_url() -> str:
@@ -31,13 +45,19 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
+        include_object=include_object,
     )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        compare_type=True,
+        include_object=include_object,
+    )
     with context.begin_transaction():
         context.run_migrations()
 
