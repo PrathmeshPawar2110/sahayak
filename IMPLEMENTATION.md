@@ -44,7 +44,7 @@
 | M3 | RAG retriever | §7, §8 | `NEEDS_REVIEW` | 2026-10-18 | |
 | M4 | LangGraph agent (text only) | §10, §11 | `NEEDS_REVIEW` | 2026-10-18 | |
 | M5 | Voice pipeline | §7, FR-1–3, FR-10 | `NEEDS_REVIEW` | 2026-10-18 | |
-| M6 | Web frontend | §14 M6 | `NEEDS_REVIEW` | 2026-10-24 | |
+| M6 | Web frontend | §14 M6 | `DONE` | 2026-10-24 | 2026-10-24 |
 | M7 | Forms and checklist | FR-8, FR-9 | `TODO` | | |
 | M8 | WhatsApp channel | FR-11 | `TODO` | | |
 | M9 | Continuous scheme discovery | §8A | `TODO` | | |
@@ -200,7 +200,7 @@
 
 ## M6 — Web frontend
 
-**Status:** `NEEDS_REVIEW`
+**Status:** `DONE`
 
 | ID | Task | Owner | Depends | Status | Notes |
 |---|---|---|---|---|---|
@@ -213,10 +213,10 @@
 | M6-T07 | "What Sahayak knows about me" panel with edit and delete-data buttons. | CC | M6-T04 | `DONE` | `ProfilePanel` from `GET /profile`; no edit endpoint exists before M10, so "Edit" is a translated hint to correct it in chat; delete calls `DELETE /sessions/{id}` behind a confirm dialog (see D-048). |
 | M6-T08 | Mobile-first, accessible layout (large tap targets, contrast, screen-reader labels). | CC | M6-T06 | `DONE` | Tailwind mobile-first layout; ≥44px tap targets (mic button 56px); visible focus ring; ARIA labels/roles on the mic button, language radiogroup, dialogs and chat groups; `aria-live="polite"` on the message list. |
 | M6-T09 | Playwright smoke test of the core flow. | CC | M6-T08 | `DONE` | `web/e2e/core-flow.spec.ts` written and type-checks/lists correctly (`npx playwright test --list`); needs a live API with an LLM provider and an ingested scheme, so (like the paid speech evals, D-045) it runs on demand, not in CI — not run here (no Docker/provider keys in this environment). CI's new `web` job instead runs eslint, tsc, a Vitest+MSW suite covering the same flow against a mocked API, and `vite build` (see D-049). |
-| M6-T10 | Try the core flow on a real phone with a non-technical person and note issues. | HUMAN | M6-T09 | `TODO` | Needs `npm run e2e` (or a manual phone test) against a real deployed/local stack; see README "Web frontend". |
+| M6-T10 | Try the core flow on a real phone with a non-technical person and note issues. | HUMAN | M6-T09 | `DONE` | Run by Prathmesh on a real phone with a non-technical user on 2026-10-24. |
 
 **Exit criteria**
-- [ ] A non-technical user can complete the core flow on a phone browser. *Built and covered by the Vitest/MSW suite against a mocked API (3/3 passing) plus manual review of the TSX; not yet verified against a real phone or a real backend (no Docker/provider keys available in this environment) — that's M6-T10.*
+- [x] A non-technical user can complete the core flow on a phone browser. *Confirmed by Prathmesh on a real phone, 2026-10-24 (M6-T10); also covered by the Vitest/MSW suite against a mocked API (3/3 passing).*
 
 ---
 
@@ -418,7 +418,6 @@ Claude Code lists here every HUMAN task that is currently blocking progress.
 | Task ID | What's needed | Blocking | Date raised |
 |---|---|---|---|
 | M1-T14 | Review and approve the 10 draft rules (`sahayak rules review <id>`), then `sahayak rules export` and commit `data/rules/` | M2 exit criterion: eval on approved rules in CI | 2026-10-17 |
-| M6-T10 | Run `just up`, `cd web && npm run build && npm run e2e` (or just use the app) on a real phone with a non-technical person; note any issues | M6 exit criterion | 2026-10-24 |
 
 ---
 
@@ -428,7 +427,7 @@ Claude Code adds one entry per completed milestone (newest first).
 
 | Date | Milestone | Summary | Commit |
 |---|---|---|---|
-| 2026-10-24 | M6 | Web frontend: Vite + React 19 + TypeScript + Tailwind v4 in `web/`, added to docker-compose (nginx-unprivileged); typed client generated (`openapi-typescript`) from a committed OpenAPI snapshot (`sahayak openapi`, no service needed to build it) plus CORS support; hi/mr/en i18n and language picker; consent screen; chat with text and streaming voice (mic button captures PCM via an `AudioWorklet` over `WS /stream`, not `MediaRecorder`, to match D-044's protocol); eligibility cards with citations, provisional caveats and last-verified dates; "what Sahayak knows about me" panel (edit via chat, real delete); mobile-first accessible layout (large tap targets, focus rings, ARIA). Vitest + MSW component tests cover the core flow against a mocked API (3 tests, no backend needed) and pass in the new CI `web` job alongside eslint/tsc/build; a Playwright smoke test (`web/e2e/core-flow.spec.ts`) is written and verified to compile/list but, like the paid speech evals, needs a live stack with provider keys and isn't run in CI or in this environment (no Docker here). Decisions D-046 to D-049. Backend: 788 Python tests pass locally (131 skip, no services), ruff/mypy clean. Waiting on M6-T10 (a real phone, non-technical user). | f509f4d (branch `m6-web-frontend`, stacked on `m5-voice`) |
+| 2026-10-24 | M6 | Web frontend: Vite + React 19 + TypeScript + Tailwind v4 in `web/`, added to docker-compose (nginx-unprivileged); typed client generated (`openapi-typescript`) from a committed OpenAPI snapshot (`sahayak openapi`, no service needed to build it) plus CORS support; hi/mr/en i18n and language picker; consent screen; chat with text and streaming voice (mic button captures PCM via an `AudioWorklet` over `WS /stream`, not `MediaRecorder`, to match D-044's protocol); eligibility cards with citations, provisional caveats and last-verified dates; "what Sahayak knows about me" panel (edit via chat, real delete); mobile-first accessible layout (large tap targets, focus rings, ARIA). Vitest + MSW component tests cover the core flow against a mocked API (3 tests, no backend needed) and pass in the new CI `web` job alongside eslint/tsc/build; a Playwright smoke test (`web/e2e/core-flow.spec.ts`) is written and verified to compile/list but, like the paid speech evals, needs a live stack with provider keys and isn't run in CI or in this environment (no Docker here). Decisions D-046 to D-049. Backend: 788 Python tests pass locally (131 skip, no services), ruff/mypy clean. M6-T10 (real-phone test) run and confirmed by Prathmesh on 2026-10-24. Reviewed, merged to `main` (with M3, M4 and M5, not previously merged) and marked DONE by Prathmesh. | f509f4d (merge) |
 | 2026-10-18 | M5 | Voice pipeline: STT/TTS interfaces with retries and fallback chains; Sarvam `saaras:v4` (detect, re-check short answers in the conversation's language) and `bulbul:v3`, OpenAI as fallbacks; shared contract suites; PyAV for MP3/WAV/OGG-Opus; sentence-level Redis TTS cache; spoken text without citations or URLs; `POST /voice`, reply audio URLs (text turns too), spoken notices when nothing is heard, text-only on TTS failure; FR-14 read-back of unclear voice turns; stream WebSocket (PCM in, partial transcripts, audio per sentence); `voice_turn` timings and `sahayak latency`; ASR eval on 50 FLEURS clips; voice round-trip eval over HTTP. 915 tests pass locally with Postgres and a local Redis stand-in (0 skipped), plus 7 live speech tests. Stream first audio p50 2.96-3.16 s, p95 4.30-5.59 s; upload p95 misses 6 s. Sarvam WER hi 6.4% / mr 13.0%. Decisions D-041 to D-045. Waiting for review. | 1fe6b3f (branch `m5-voice`, stacked on `m4-agent`) |
 | 2026-10-18 | M4 | LangGraph agent (text only): state + Postgres checkpointer (Alembic tables, strict deserialisation), one-call turn understanding + deterministic profile merge with contradictions and consent-gated sensitive fields, shortlist by state and need, rule engine with a state guard, strict filter (provisional drafts labelled), question planning with LLM wording and hi/mr/en fallbacks, per-scheme evidence and structured cited replies with a post-check (regenerate, then template), PII detectors, reset/delete, session/consent/message/profile/scheme API, per-node tracing with tokens and cost, 30-dialogue eval (scripted in CI, LLM-played live). 774 tests pass locally (3 Redis tests skip). Live: 0 violations, p50 turn 1.96 s. Decisions D-032 to D-040. Waiting for review. | c4a4f83 (branch `m4-agent`) |
 | 2026-10-18 | M3 | RAG retriever: filtered pgvector search (exact when restricted to schemes), OR-term full-text search (`english` / `simple`), RRF fusion to the top 5, LLM translation of hi/mr queries with all lists fused, 31-query retrieval eval with `sahayak eval --suite retrieval`. recall@5 0.919 (target 0.85). 491 tests pass locally (3 Redis tests skip). Decisions D-029 to D-031. Waiting for review. | 0f6745b (branch `m3-rag-retriever`) |
