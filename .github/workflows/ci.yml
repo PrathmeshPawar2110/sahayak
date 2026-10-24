@@ -111,13 +111,32 @@ jobs:
           path: evals/reports/*-eligibility.md
           if-no-files-found: ignore
 
+  web:
+    name: Web frontend (lint, type-check, tests, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
   compose:
     name: Docker image and compose smoke test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Start api (with migrate, postgres, redis)
-        run: docker compose up --build --detach api
+      - name: Start api and web (with migrate, postgres, redis)
+        run: docker compose up --build --detach api web
       - name: Wait for /readyz
         run: |
           for _ in $(seq 1 60); do
@@ -130,6 +149,7 @@ jobs:
         run: |
           curl -fsS http://localhost:8000/healthz
           curl -fsS -o /dev/null http://localhost:8000/docs
+          curl -fsS -o /dev/null http://localhost:5173/
           test "$(docker compose ps --all --format '{{.Service}} {{.ExitCode}}' | grep '^migrate ')" = "migrate 0"
           test "$(docker compose exec -T api id -u)" = "10001"
       - name: Show logs

@@ -84,6 +84,9 @@ class Settings(BaseSettings):
     session_ttl_days: int = Field(default=30, gt=0)
     max_questions_per_session: int = Field(default=8, gt=0)
 
+    # --- web frontend (not in TRD §15; added in M6)
+    cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173"]
+
     # --- scheme discovery (TRD §8A)
     discovery_enabled: bool = True
     discovery_daily_cron: str = "0 6 * * *"
@@ -135,6 +138,13 @@ class Settings(BaseSettings):
     def _split_states(cls, value: object) -> object:
         if isinstance(value, str):
             return [part.strip().upper() for part in value.split(",") if part.strip()]
+        return value
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _split_origins(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [part.strip() for part in value.split(",") if part.strip()]
         return value
 
     @field_validator("doc_expiry_offsets_days", "deadline_offsets_days", mode="before")

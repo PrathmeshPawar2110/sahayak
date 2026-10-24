@@ -1,5 +1,6 @@
 import io
 import json
+from pathlib import Path
 
 import pytest
 import typer
@@ -37,6 +38,7 @@ def test_help_lists_the_commands() -> None:
     assert "ingest" in result.output
     assert "rules" in result.output
     assert "eval" in result.output
+    assert "openapi" in result.output
     assert "review" in rules.output
     assert "list" in rules.output
     assert "export" in rules.output
@@ -48,6 +50,24 @@ def test_rules_schema_prints_the_json_schema() -> None:
 
     assert result.exit_code == 0
     assert json.loads(result.output) == rule_json_schema()
+
+
+def test_openapi_writes_the_schema_without_touching_any_service(tmp_path: Path) -> None:
+    out = tmp_path / "openapi.json"
+
+    result = runner.invoke(app, ["openapi", "--out", str(out)])
+
+    assert result.exit_code == 0
+    schema = json.loads(out.read_text(encoding="utf-8"))
+    assert schema["info"]["title"] == "Sahayak API"
+    assert "/v1/sessions" in schema["paths"]
+
+
+def test_openapi_to_stdout() -> None:
+    result = runner.invoke(app, ["openapi", "--out", "-"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.output)["info"]["title"] == "Sahayak API"
 
 
 def test_select_schemes_keeps_order_and_drops_repeats() -> None:

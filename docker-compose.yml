@@ -26,6 +26,17 @@ services:
       redis:
         condition: service_healthy
 
+  web:
+    build:
+      context: ./web
+      args:
+        VITE_API_URL: ${WEB_API_URL:-http://localhost:8000}
+    image: sahayak-web:dev
+    ports:
+      - "5173:8080"
+    depends_on:
+      - api
+
   migrate:
     <<: *app
     command: ["alembic", "upgrade", "head"]

@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* A visible focus ring everywhere, for keyboard and screen-reader users (M6-T08). */
+:focus-visible {
+  outline: 3px solid #0f766e;
+  outline-offset: 2px;
+}

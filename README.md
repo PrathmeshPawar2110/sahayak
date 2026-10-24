@@ -209,6 +209,41 @@ uv run sahayak eval --suite asr --stt whisper  # the same for the fallback
   stand-in, `fakeredis.TcpFakeServer(("127.0.0.1", 6379)).serve_forever()` speaks the Redis
   protocol (dev only; it keeps nothing on disk).
 
+## Web frontend
+
+`web/` is a React + Vite + TypeScript + Tailwind app (M6): a language picker, a consent screen,
+chat with text and voice (the big mic button streams PCM over `WS /stream`, D-047), eligibility
+cards with citations and last-verified dates, and a "what Sahayak knows about me" panel with a
+delete-everything button.
+
+```sh
+cd web
+npm install
+npm run dev              # http://localhost:5173, talking to the API on :8000 (CORS_ORIGINS)
+npm run lint             # eslint
+npm run typecheck        # tsc --noEmit
+npm test                 # vitest + MSW-mocked API, no backend needed
+npm run build            # tsc -b && vite build -> dist/
+```
+
+The typed client (`src/api/schema.ts`) is generated from a committed OpenAPI snapshot, not a live
+server (D-046):
+
+```sh
+uv run python -m sahayak.cli openapi --out web/openapi.json   # after changing a route or schemas.py
+cd web && npm run generate:api
+```
+
+`npm run e2e` (`web/e2e/core-flow.spec.ts`, Playwright) drives a real browser through the core
+flow against a real API — it needs the stack up with an LLM provider configured and at least one
+scheme ingested, so it runs on demand rather than in CI (D-049; same reason the voice/ASR evals
+do, D-045):
+
+```sh
+uv run just up            # api + web + postgres + redis (web on :5173, built with VITE_API_URL)
+cd web && npm run build && npm run e2e
+```
+
 ## Project layout
 
 See TRD §13. Design decisions are recorded in [docs/DECISIONS.md](docs/DECISIONS.md).

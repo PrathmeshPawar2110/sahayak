@@ -63,3 +63,15 @@ async def test_openapi_docs_are_published(client: httpx.AsyncClient) -> None:
     assert schema["info"]["title"] == "Sahayak API"
     assert {"/healthz", "/readyz"} <= set(schema["paths"])
     assert (await client.get("/docs")).status_code == 200
+
+
+async def test_cors_allows_the_configured_web_origin(client: httpx.AsyncClient) -> None:
+    response = await client.get("/healthz", headers={"Origin": "http://localhost:5173"})
+
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+async def test_cors_rejects_other_origins(client: httpx.AsyncClient) -> None:
+    response = await client.get("/healthz", headers={"Origin": "https://evil.example"})
+
+    assert "access-control-allow-origin" not in response.headers
