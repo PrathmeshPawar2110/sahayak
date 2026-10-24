@@ -12,7 +12,7 @@ from langgraph.runtime import Runtime
 
 from sahayak.agent.conversation import history, latest_user_text
 from sahayak.agent.deps import AgentDeps
-from sahayak.agent.state import AgentState, TurnUnderstanding
+from sahayak.agent.state import AgentState, FieldValue, TurnUnderstanding
 from sahayak.agent.untrusted import as_data
 from sahayak.eligibility.fields import PROFILE_FIELDS
 from sahayak.llm.base import ChatMessage
@@ -25,6 +25,15 @@ SENSITIVE_FIELDS = tuple(name for name, field in PROFILE_FIELDS.items() if field
 _LETTERS = re.compile(r"[^\W\d_]")
 
 
+def _fact_text(value: FieldValue) -> str:
+    """A value written the way the prompt asks the LLM to write facts."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+
+
 async def classify_intent(state: AgentState, runtime: Runtime[AgentDeps]) -> AgentState:
     deps = runtime.context
     message = latest_user_text(state)
@@ -32,6 +41,11 @@ async def classify_intent(state: AgentState, runtime: Runtime[AgentDeps]) -> Age
     prompt = load_prompt(PROMPT_NAME).render(
         language=language,
         pending=state.get("pending_question"),
+        heard=[
+            {"field": c.field, "value": _fact_text(c.new)}
+            for c in state.get("contradictions", [])
+            if c.reason == "unclear_audio" and c.asked
+        ],
         history=history(state, deps.config.history_messages),
         message=as_data(message),
         fields=PROFILE_FIELDS.values(),

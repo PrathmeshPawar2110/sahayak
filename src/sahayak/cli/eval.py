@@ -1,13 +1,14 @@
-"""`sahayak eval --suite eligibility|retrieval|dialogues|all`: score the rule engine, the
-retriever and whole conversations with the agent."""
+"""`sahayak eval --suite eligibility|retrieval|dialogues|asr|voice|all`: score the rule engine,
+the retriever, whole conversations with the agent, speech-to-text and voice round trips."""
 
 import asyncio
 import os
 import subprocess
+from collections.abc import Coroutine
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from langgraph.checkpoint.memory import InMemorySaver
@@ -19,6 +20,7 @@ from sahayak.agent.deps import AgentConfig, AgentDeps
 from sahayak.agent.graph import build_graph
 from sahayak.agent.passages import RetrieverPassageSearch
 from sahayak.agent.service import AgentService
+from sahayak.api.app import create_app
 from sahayak.config import Settings, get_settings
 from sahayak.db.session import create_engine, create_session_factory
 from sahayak.eligibility.store import (
@@ -27,8 +29,10 @@ from sahayak.eligibility.store import (
     load_latest_rules,
     load_rule_files,
 )
+from sahayak.evals import asr as asr_eval
 from sahayak.evals import dialogues as dialogues_eval
 from sahayak.evals import retrieval as retrieval_eval
+from sahayak.evals import voice as voice_eval
 from sahayak.evals.dataset import PROFILES_PATH, load_profiles
 from sahayak.evals.eligibility import (
     EligibilityEval,
@@ -42,6 +46,9 @@ from sahayak.observability.logging import configure_logging
 from sahayak.rag.embeddings import create_embedding_provider
 from sahayak.rag.retriever import HybridRetriever
 from sahayak.rag.translation import LLMQueryTranslator
+from sahayak.voice.speech import Speaker
+from sahayak.voice.stt import STTError, create_stt_provider
+from sahayak.voice.tts import TTSError, create_tts_provider
 
 console = Console()
 
@@ -50,7 +57,15 @@ class Suite(StrEnum):
     ELIGIBILITY = "eligibility"
     RETRIEVAL = "retrieval"  # needs the ingested index and the embedding model
     DIALOGUES = "dialogues"  # needs the index, the embedding model and the LLM (paid calls)
+    ASR = "asr"  # downloads the FLEURS clips once; calls the STT provider (paid)
+    VOICE = "voice"  # the API over HTTP: index, embeddings, LLM, STT and TTS (paid)
     ALL = "all"  # every suite
+
+
+class VoiceChannel(StrEnum):
+    UPLOAD = "upload"
+    STREAM = "stream"
+    BOTH = "both"
 
 
 class SimulatedUserKind(StrEnum):
@@ -95,6 +110,19 @@ def eval_command(
     limit: Annotated[
         int | None, typer.Option(min=1, help="Run only the first N dialogues.")
     ] = None,
+    asr_clips: Annotated[
+        Path, typer.Option(help="ASR clips with reference transcripts (JSONL).")
+    ] = asr_eval.CLIPS_PATH,
+    stt: Annotated[
+        str | None,
+        typer.Option(help="STT provider for the asr suite (default: STT_PROVIDER), no fallback."),
+    ] = None,
+    hint: Annotated[
+        bool, typer.Option(help="asr: pass each clip's language as the language hint.")
+    ] = True,
+    channel: Annotated[
+        VoiceChannel, typer.Option(help="voice: which channel to time.")
+    ] = VoiceChannel.BOTH,
     record: Annotated[
         bool, typer.Option(help="Save the metrics as an eval_runs row (needs DATABASE_URL).")
     ] = True,
@@ -134,6 +162,26 @@ def eval_command(
             dialogues_path=dialogues,
             dataset=dataset,
             user=user,
+            limit=limit,
+            report_dir=report_dir,
+            record=record,
+            git_sha=git_sha,
+        )
+    if suite in (Suite.ASR, Suite.ALL):
+        passed &= _asr(
+            settings,
+            clips_path=asr_clips,
+            stt_name=stt,
+            hint=hint,
+            report_dir=report_dir,
+            record=record,
+            git_sha=git_sha,
+        )
+    if suite in (Suite.VOICE, Suite.ALL):
+        passed &= _voice(
+            settings,
+            dialogues_path=dialogues,
+            channel=channel,
             limit=limit,
             report_dir=report_dir,
             record=record,
@@ -327,6 +375,137 @@ def _dialogues(
     metrics = result.metrics()
     if metrics.get("violations"):
         console.print(f"[red]{metrics['violations']} replies named schemes they shouldn't.[/red]")
+        return False
+    return True
+
+
+def _run[T](coroutine: Coroutine[Any, Any, T]) -> T:
+    """`asyncio.run`, on a selector loop on Windows (psycopg, the agent's checkpointer, can't
+    use the default Proactor loop)."""
+    if os.name == "nt":
+        return asyncio.run(coroutine, loop_factory=asyncio.SelectorEventLoop)
+    return asyncio.run(coroutine)
+
+
+def _asr(
+    settings: Settings,
+    *,
+    clips_path: Path,
+    stt_name: str | None,
+    hint: bool,
+    report_dir: Path,
+    record: bool,
+    git_sha: str | None,
+) -> bool:
+    """Word error rate of one STT provider (no fallback) on the FLEURS clips."""
+    clips = asr_eval.load_clips(clips_path)
+    fetched = asr_eval.fetch_clips(clips)
+    if fetched:
+        console.print(f"Downloaded {fetched} clips to {asr_eval.CLIP_DIR}")
+    update: dict[str, Any] = {"stt_fallback_provider": ""}
+    if stt_name:
+        update["stt_provider"] = stt_name
+    try:
+        stt = create_stt_provider(settings.model_copy(update=update))
+    except STTError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    def progress(result: asr_eval.ClipResult) -> None:
+        console.print(
+            f"{result.clip.id}: WER {result.wer:.1%}"
+            + (f", {result.error}" if result.error else ""),
+            markup=False,
+        )
+
+    async def run() -> asr_eval.AsrEval:
+        result = await asr_eval.run_asr_eval(stt, clips, hint=hint, on_result=progress)
+        if record:
+            engine = create_engine(settings)
+            try:
+                async with create_session_factory(engine)() as session:
+                    config = asr_eval.run_config(result, dataset=clips_path)
+                    await asr_eval.record_run(session, result, git_sha=git_sha, config=config)
+                    await session.commit()
+            finally:
+                await engine.dispose()
+        return result
+
+    result = _run(run())
+    _write_report(
+        report_dir, "asr", asr_eval.render_report(result, git_sha=git_sha, dataset=clips_path)
+    )
+    if result.overall.failures:
+        console.print(f"[red]{result.overall.failures} clips could not be transcribed.[/red]")
+        return False
+    return True
+
+
+def _voice(
+    settings: Settings,
+    *,
+    dialogues_path: Path,
+    channel: VoiceChannel,
+    limit: int | None,
+    report_dir: Path,
+    record: bool,
+    git_sha: str | None,
+) -> bool:
+    """Voice turns through the API over HTTP (the app as `uvicorn` runs it), timed per stage."""
+    loaded = dialogues_eval.load_dialogues(dialogues_path)[:limit]
+    try:
+        user_voice = Speaker(create_tts_provider(settings), None, ttl_sec=1)
+        agent_model = create_llm_provider(settings).model
+    except (TTSError, LLMConfigError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    channels: list[voice_eval.Channel] = (
+        ["upload", "stream"] if channel is VoiceChannel.BOTH else [channel.value]  # type: ignore[list-item]
+    )
+
+    def progress(turn: voice_eval.VoiceTurnResult) -> None:
+        console.print(
+            f"{turn.dialogue.id} {turn.dialogue.language} {turn.channel}: first audio "
+            f"{turn.first_audio_ms} ms, server {turn.server_ms}"
+            + (f", {turn.error}" if turn.error else ""),
+            markup=False,
+        )
+
+    async def run() -> voice_eval.VoiceEval:
+        app = create_app(settings)
+        async with voice_eval.serve(app) as base_url:
+            services = app.state.voice
+            if services.stt is None or services.speaker is None or not app.state.agent.available:
+                raise typer.BadParameter("the voice suite needs the LLM, STT and TTS configured")
+            result = await voice_eval.run_voice_eval(
+                base_url,
+                user_voice,
+                loaded,
+                channels=channels,
+                stt_name=services.stt.name,
+                on_result=progress,
+            )
+        await user_voice.aclose()
+        if record:
+            engine = create_engine(settings)
+            try:
+                async with create_session_factory(engine)() as session:
+                    config = {
+                        "dataset": dialogues_path.as_posix(),
+                        "channels": channels,
+                        "stt": result.stt,
+                        "tts": result.tts,
+                        "agent_model": agent_model,
+                    }
+                    await voice_eval.record_run(session, result, git_sha=git_sha, config=config)
+                    await session.commit()
+            finally:
+                await engine.dispose()
+        return result
+
+    result = _run(run())
+    report = voice_eval.render_report(result, git_sha=git_sha, agent_model=agent_model)
+    _write_report(report_dir, "voice", report)
+    if not result.passed():
+        console.print("[red]Voice turns failed or missed the latency targets.[/red]")
         return False
     return True
 

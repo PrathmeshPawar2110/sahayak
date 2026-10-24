@@ -507,3 +507,125 @@ Record one entry per decision, newest last. Reference them from `IMPLEMENTATION.
 - **Alternatives considered:** separate dialogue personas (the checked labels would have to be produced again); LLM-only dialogues (not reproducible and not free, so unusable in CI); gating CI on reference accuracy (would fail on known draft mistakes that review will fix).
 - **Consequences:** The scripted CI run on the drafts shows engine agreement 100%, 0 violations, reference accuracy 83% of dialogues exact and 97.7% per scheme (all misses are the D-028 draft mistakes), and 5.7 questions on average, often reaching the limit of 8 because the drafts ask about many fields across 10 schemes. Live runs cost real LLM calls (about 600 per full run) and depend on the local index and rules, like the retrieval eval (D-031).
 - **Live run (2026-10-18, gpt-4o for the agent and the simulated user, the M1 index and draft rules, local Postgres, multilingual-e5-large):** 30 dialogues, 0 violations, 0 errors, 414 agent LLM calls, $1.46. Reference: 73.3% of dialogues exact, 96.6% per scheme. Engine agreement 83.3% (en 90%, hi 90%, mr 70%), shown precision 92.6%, recall 90.9%. 5.9 questions and 6.9 turns on average, 83.3% of opening facts read on turn 1, turn latency p50 1.96 s (max 5.7 s). Every engine disagreement traces to the simulated user or the question limit, not to the agent misreading what was said: in d021 and d022 the simulated user invented facts its persona doesn't have (an income, 6 acres, "no one pays income tax"), in d017 it rounded the boundary income ₹2,50,001 to "2.5 lakh", and in d003 the 8-question limit ran out before marital status was asked (a miss, the safe direction). The simulated-user prompt should list the unknown fields explicitly and keep exact amounts for boundary personas (a `simulated_user@v2`, not done here so that this run stays reproducible).
+
+## D-041 — Speech providers: Sarvam Saaras and Bulbul, OpenAI as the fallback
+
+- **Date:** 2026-10-18
+- **Task:** M5-T02, M5-T03, M5-T04
+- **Status:** accepted
+- **Context:** TRD §7 asks for Sarvam AI by default (Saarika for STT, Bulbul for TTS) and one fallback each, with model names checked against the current docs and kept in config.
+- **Decision:**
+  - **STT: Sarvam `saaras:v4`** (`SARVAM_STT_MODEL`), `POST https://api.sarvam.ai/speech-to-text`, multipart `file` + `model` + `language_code` (`unknown` to detect, or `hi-IN` / `mr-IN` / `en-IN`), header `api-subscription-key`. The REST API is for clips under about 30 s; it takes WAV, MP3, AAC, OGG/Opus, FLAC, MP4/M4A, WebM and more, so browser recordings and WhatsApp voice notes need no conversion. The response has `transcript`, `language_code` and `language_probability`, and **no confidence for the words** (D-043). `saaras:v4` is the documented default; the older `saarika:v2.5` still answered but is not the recommended model. Checked live on 2026-10-18: 0.2 to 0.5 s per short utterance.
+  - **TTS: Sarvam `bulbul:v3`, voice `shubh`** (`SARVAM_TTS_MODEL`, `SARVAM_TTS_VOICE`; the voice is the model's documented default), `POST https://api.sarvam.ai/text-to-speech`, JSON `text`, `language_code`, `model`, `speaker`, `speech_sample_rate` (24000), `output_audio_codec` (`wav`); the response is base64 audio in `audios[0]`. v3 takes 2500 characters (v2 1500), and v3 rejects Opus output, so OGG/Opus is made locally (D-042). `bulbul:v4-flash` exists with per-language persona voices; v3 is used because one voice speaks all three languages. Live: 0.7 to 1.3 s per sentence.
+  - **Fallbacks: OpenAI**, reusing `OPENAI_API_KEY` (`STT_FALLBACK_PROVIDER=whisper`, `TTS_FALLBACK_PROVIDER=openai`): `gpt-4o-mini-transcribe` (token log-probabilities give a real confidence) and `gpt-4o-mini-tts` with voice `alloy`. `whisper-1` is supported but not the default: without a language hint it wrote Hindi in Urdu script. A fallback with a missing key is left out with a warning instead of disabling voice.
+  - **Not implemented:** AI4Bharat IndicConformer and Indic Parler-TTS (self-hosted models that need a GPU); `STT_PROVIDER=indicconformer` and `TTS_PROVIDER=indic_parler` raise a clear "not implemented" config error.
+  - **Retries:** speech is interactive, so each provider gets 2 tries with a 0.25 s backoff, then the fallback. 429 and 5xx are retried; 400/422 mean bad audio and are not.
+  - **Limits and cost** (Sarvam docs, 2026-10-18): STT 60 requests/min on the Starter plan; ₹30 per hour of audio for STT; ₹30 per 10,000 characters for Bulbul v3.
+- **Alternatives considered:** Sarvam's streaming STT WebSocket (D-044); OpenAI as the default (worse on Indian languages, see D-045); self-hosted AI4Bharat models (no GPU in the dev setup or the planned Container Apps).
+- **Consequences:** Model names and voices are config (`.env.example`). The local `.env` holds the Sarvam key (M5-T01). Sarvam's account-wide rate limit will matter under load (M12-T10).
+
+## D-042 — Audio: PyAV instead of an ffmpeg binary, sentence-level cache, no stored recordings
+
+- **Date:** 2026-10-18
+- **Task:** M5-T04, M5-T05, M5-T06
+- **Status:** accepted
+- **Context:** The web wants MP3/WAV and WhatsApp OGG/Opus (TRD §7), and TTS should be cached (NFR Cost). The dev machine has no ffmpeg (and Smart App Control blocks unsigned binaries); the image should stay small.
+- **Decision:**
+  - **PyAV** (`av`, FFmpeg's libraries in a wheel) does all decoding and encoding: mono, 24 kHz, MP3 at 48 kbps, Opus at 32 kbps in Ogg, or 16-bit WAV. No `ffmpeg` binary on the host or in the image. Conversions run in a worker thread.
+  - **The unit of synthesis and caching is a sentence.** Replies are split at full stops, question marks and dandas (short pieces joined to the next). Each sentence is cached in Redis as MP3 under `tts:v1:<provider>:<model>:<voice>:<language>:<sha256(text)>` for `TTS_CACHE_TTL_DAYS` (7). Fixed wording (questions, notices, caveats) is therefore synthesised once for everyone, and MP3 sentences join by concatenation (no ID3 tag or Xing header in a part). A whole reply in another format is re-encoded from the cached MP3. Audio from a fallback voice is not cached, so the main voice returns with its provider. The cache fails open like the embedding cache (skip Redis for 30 s after an error).
+  - **What is spoken:** the reply without citation markers, without the sources list, and with URLs replaced by "the official website" (in the reply's language); the text reply keeps them.
+  - **Audio URL per reply:** `GET /v1/sessions/{id}/messages/{message_id}/audio?format=mp3|wav|ogg`, synthesised on first request from the stored reply. Text turns return it too (synthesised only if played); voice turns synthesise eagerly, so the URL is served from the cache. Served with `Cache-Control: private`.
+  - **Recordings are never stored.** A voice message is saved as its masked transcript (with `asr_confidence`); `messages.audio_ref` stays empty. Deleting a session or withdrawing the profile consent also deletes the cached audio of its replies, which may repeat what the user said.
+- **Alternatives considered:** shelling out to `ffmpeg` (a binary to install, blocked locally); caching whole replies (no reuse of repeated sentences, and one cache entry per format); returning audio inline as base64 in the JSON (bigger responses, no reuse by URL).
+- **Consequences:** Joined MP3 parts carry about 50 ms of encoder padding each, heard as a slightly longer pause between sentences. Cache memory is about 6 KB per second of speech.
+
+## D-043 — Language detection and ASR confidence (FR-2, FR-14)
+
+- **Date:** 2026-10-18
+- **Task:** M5-T03, M5-T07
+- **Status:** accepted
+- **Context:** FR-2 asks for automatic language detection, and FR-14 for confirming key values when ASR confidence is low. Sarvam was measured on 2026-10-18 with Bulbul-spoken phrases, clean and with added white noise (5 dB and -5 dB SNR):
+  - auto-detect (`unknown`) is unreliable on short answers: "हाँ" came back as English "Yeah." (language probability 0.70), "पैंतालीस" as "45." (0.55), "नाही" as "No." (0.91). The agent would then switch to replying in English.
+  - with a language hint, short answers were right ("हाँ।", "पैंतालीस।"), but the hint forces the language: Marathi speech with `hi-IN` came back **translated into Hindi**, English speech transliterated into Devanagari.
+  - `language_probability` says nothing about the words: noisy "पैंतालीस" became "47." with 0.98, while clean "पैंतालीस" scored 0.55. Under heavy noise Sarvam produced fluent wrong text ("कहता है", "डूम.") with no signal.
+  - OpenAI's token probabilities did track garbage (0.12 to 0.4 on noise) but were low even on clean short Hindi (0.45 to 0.64, with wrong transcripts).
+- **Decision:**
+  - **Sarvam detects first, then re-checks.** The first try uses `unknown`. If the detected language differs from the conversation's and the answer has at most 3 words or the language probability is below 0.9, the clip is transcribed again with the conversation's language as the hint. A clear sentence in another language is kept, so a user can switch languages by speaking. The first turn of a session has no hint.
+  - **`Transcript.confidence` is the provider's confidence in the words, or None.** Sarvam's is None: the language probability is not used as a stand-in, because it would trigger confirmations on correct short answers and miss real mistakes. OpenAI's is the geometric mean of the token probabilities.
+  - **FR-14 on voice:** when a voice turn's confidence is below `ASR_CONFIRM_THRESHOLD` (0.6), `extract_profile` saves nothing new from it. Every value it would add or change becomes an `unclear_audio` item, and `plan_question` reads back what was heard ("I may not have heard you clearly. I heard: "…". Is that right? If not, please say it again, or type it."), in fixed wording in all three languages. The next turn's understanding prompt (`turn_understanding@v2`) lists the values that were read back. Values the user confirms or corrects are saved; the rest are dropped and may be asked again later. The read-back counts as one question towards the limit of 8. A known value repeated is not read back. `FieldSource.confidence` records the turn's ASR confidence.
+  - Nothing heard (empty transcript) or no transcript at all (every provider failed) gives a fixed spoken notice and no agent turn.
+- **Alternatives considered:** always hinting after the first turn (locks a misdetected first turn into the wrong language for the whole session); never hinting (short answers flip the reply language); the language probability as confidence (shown to be misleading above); transcribing every turn with two providers and comparing them (twice the cost, and the slower provider's latency on every turn).
+- **Consequences:** With Sarvam as the main provider, the read-back only happens when the fallback transcribed the turn, which is when errors are most likely. Mishearings by Sarvam itself are not caught by confidence. The contradiction check (a new value that disagrees with a known one is confirmed) still applies, and every saved value is shown in "what Sahayak knows about me" (M6). The 0.6 threshold is a starting point: on the clean FLEURS clips OpenAI's mean confidence was 0.94 (hi) and 0.89 (mr) (D-045).
+
+## D-044 — Streaming voice: PCM over a WebSocket, partial transcripts by re-transcription, audio by sentence
+
+- **Date:** 2026-10-18
+- **Task:** M5-T08
+- **Status:** accepted
+- **Context:** TRD §11 asks for `WS /v1/sessions/{id}/stream` with audio chunks in and partial transcripts, reply text and audio chunks out, for the web app's live transcript (M6-T05) and the first-audio latency target (TRD §5).
+- **Decision:**
+  - **In:** the client sends raw 16-bit mono PCM (8 to 48 kHz; 16 kHz by default) as binary frames between optional `start` and `stop` messages. The browser can produce PCM with an AudioWorklet; PCM chunks, unlike MediaRecorder's WebM fragments, can be cut anywhere and wrapped as WAV for any provider.
+  - **Partial transcripts:** every `STREAM_PARTIAL_INTERVAL_SEC` (2) of new audio, the recording so far is transcribed again through the normal STT provider (only one at a time; a partial still running at `stop` is cancelled first). This is provider-neutral and reuses the fallback chain. It costs extra STT on long utterances (about 2.5x the audio length for a 10 s one), which `0` turns off. The final transcript is one transcription of the whole utterance.
+  - **Out:** `transcript`, then `reply` (the `/messages` body), then the reply's audio one sentence per frame as soon as each is ready (later sentences are synthesised meanwhile, 3 at a time), then `done` with the server's stage timings. Session errors close the connection with code 1008. One connection carries many utterances.
+  - Each utterance opens its own database session; nothing holds a transaction or row lock between turns.
+- **Alternatives considered:** Sarvam's streaming STT WebSocket (`wss://api.sarvam.ai/speech-to-text/ws`): it sends a transcript per VAD segment, which for a one-sentence answer arrives about when the user stops (little earlier than the final one), it is Sarvam-only (no fallback), and its end-of-stream needs a timeout heuristic; worth revisiting if users speak long turns. Binary audio frames out (harder for clients to keep in order with JSON events).
+- **Consequences:** First audio after `stop` is STT + agent + the first sentence's TTS. The same protocol works for any future STT provider.
+
+## D-045 — Speech evals: FLEURS clips for WER, and a voice round trip over HTTP
+
+- **Date:** 2026-10-18
+- **Task:** M5-T09, M5-T10
+- **Status:** accepted
+- **Context:** TRD §12.3 asks for WER per language on about 50 Hindi and Marathi clips from open datasets; §12.5 and the M5 exit criteria ask for p50/p95 per stage, and a voice round trip in hi, mr and en.
+- **Decision:**
+  - **ASR clips:** Google FLEURS (CC BY 4.0, Hugging Face `google/fleurs`), dev split, the first 25 distinct sentences in each of the `hi_in` and `mr_in` audio archives (one speaker per sentence). `evals/asr.jsonl` keeps the clip ids, file names, SHA-256 and reference transcripts (attribution: FLEURS, Conneau et al. 2022). The audio is not committed: `sahayak eval --suite asr` streams each archive once and stops as soon as its listed clips are found (about 40 MB kept in `data/raw/asr/`, gitignored), checking every checksum. Common Voice needs a login and AI4Bharat's sets are gated, so FLEURS was the simplest open source.
+  - **Scoring:** NFC, lower case, punctuation (danda included) removed; corpus-level WER and CER per language. A lenient WER also folds the nukta and chandrabindu/anusvara spellings that FLEURS references and ASR output use interchangeably (ज़मीन/जमीन, गाँव/गांव). One provider at a time (`--stt`), no fallback, with the clip's language as the hint by default (as on every turn after the first).
+  - **Latency:** every voice turn logs `voice_turn` (channel, outcome, STT provider, confidence, transcript length, `stt_ms`, `agent_ms`, `tts_ms`, `total_ms`; never words). `sahayak latency [LOG...]` prints p50/p95/max per channel and stage from JSON logs, alongside `agent_turn` for text turns.
+  - **Round trip:** `sahayak eval --suite voice` serves the real app with uvicorn on a local port and, for each of the 30 dialogue openings (10 per language) spoken by the TTS voice, runs a fresh session's first turn through `POST /voice` and through the stream. First audio is measured by the client from the end of speech: for uploads until the reply's MP3 is downloaded, for the stream until the first audio frame. It fails on any failed turn or if first audio misses p50 3.5 s / p95 6 s (TRD §5). Synthetic speech is clean, so its transcript WER is only a sanity check.
+- **Alternatives considered:** committing the clips (40 MB of binaries in git); a WER gate (the TRD sets no target); timing only server-side (misses upload and download).
+- **Consequences:** Both suites call paid APIs and run on demand, not in CI.
+- **Runs (2026-10-18):** ASR, Sarvam `saaras:v4` with hint: WER hi **6.4%** (lenient 4.7%), mr **13.0%** (13.0%), CER 1.9% / 3.8%, p50 0.8 s per clip, 0 failures. OpenAI `gpt-4o-mini-transcribe` with hint: hi 9.3% (7.5%), mr 25.1%, mean confidence 0.94 / 0.89, p50 1.5 s. Voice round trip, 30 openings x 2 channels, two runs (Sarvam STT/TTS, gpt-4o, local Postgres with the M1 index, multilingual-e5-large, a local fakeredis server for the caches): 60 of 60 turns answered in each run, every reply in the speaker's language, transcript WER on synthetic speech 8.9% / 7.7%. **Stream first audio p50 2.96 s / 3.16 s, p95 4.30 s / 5.59 s: within the TRD targets in both runs.** Upload (whole reply file downloaded) p50 3.30 s / 3.76 s, p95 7.07 s / 7.90 s: misses p95 (and p50 in the second run), because the client waits for every sentence. Server stages, second run, stream: STT p50 0.41 s, agent 1.90 s (p95 3.3 s, max 5.7 s), first sentence TTS 0.65 s. The agent (two gpt-4o calls per turn) is the largest and most variable stage; the TRD's mitigations (a faster model for understanding, streaming the LLM's reply into TTS) are the next levers. The first run was recorded with an older gate that also required the upload channel to meet the targets, so its `eval_runs` row says `passed: false`.
+
+## D-046 — Web stack and a generated client from a committed OpenAPI snapshot
+
+- **Date:** 2026-10-24
+- **Task:** M6-T01
+- **Status:** accepted
+- **Context:** TRD §14 M6 asks for a React app; the tracker also asks for "an API client generated from OpenAPI". Generating straight from a live server would make every frontend build (and CI) depend on a running API with a database and Redis.
+- **Decision:**
+  - **Vite + React 19 + TypeScript + Tailwind CSS v4** (`@tailwindcss/vite`, no separate `tailwind.config.js`/PostCSS config needed) in `web/`, added to `docker-compose.yml` as a `web` service (multi-stage build, static files served by `nginx-unprivileged` on 8080, mapped to host `5173`).
+  - **`sahayak openapi`** (new CLI command, `src/sahayak/cli/openapi.py`) builds the FastAPI app and dumps `app.openapi()` to a file (default `web/openapi.json`) without touching Postgres, Redis or any provider — `create_app()` doesn't open connections until the lifespan or a request does. The schema is committed; `npm run generate:api` runs `openapi-typescript` over it into `web/src/api/schema.ts` (also committed, also regenerated by the same command). Re-run both after changing a route or `api/schemas.py`.
+  - Hand-written `web/src/api/types.ts` and `client.ts` are the types and fetch wrapper the UI actually imports (trimmed to the fields used); `schema.ts` is the full generated reference, kept in sync and usable directly for anything `types.ts` hasn't trimmed in yet.
+  - **CORS:** a new `CORS_ORIGINS` setting (default `http://localhost:5173`, comma-separated), wired to `CORSMiddleware` in `create_app` — needed because the dev server (5173) and the API (8000) are different origins.
+- **Alternatives considered:** pointing the generator at a live dev server (couples every frontend build to a running backend); a hand-maintained client only (drifts from the API silently); tRPC/GraphQL (the API is already a settled REST/OpenAPI surface, TRD §11).
+- **Consequences:** The generated schema can drift from the real API if someone forgets to re-run `sahayak openapi`; nothing currently checks that in CI (a diff check would be a reasonable follow-up once the API stabilises further).
+
+## D-047 — Mic capture over the stream WebSocket uses an `AudioWorklet`, not `MediaRecorder`
+
+- **Date:** 2026-10-24
+- **Task:** M6-T05
+- **Status:** accepted
+- **Context:** The tracker's one-line task description says "Big mic button (MediaRecorder)", but the streaming voice protocol built in M5 (D-044) expects raw 16-bit PCM binary frames, not `MediaRecorder`'s WebM/Opus container fragments — PCM can be cut at any point, which is what makes mid-utterance partial transcripts possible.
+- **Decision:** The mic button opens an `AudioContext({ sampleRate: 16000 })`, loads `public/pcm-worklet.js` (an `AudioWorkletNode` that converts each render quantum's `Float32` samples to `Int16` PCM on the audio thread) and streams the raw bytes over `WS /v1/sessions/{id}/stream`, matching D-044 exactly: a `start` message, binary PCM frames, a `stop` message, then `partial_transcript` / `transcript` / `reply` / `audio` / `done` back. Reply audio chunks play back-to-back through a small sequential `HTMLAudioElement` queue, starting as soon as the first chunk arrives rather than waiting for the whole reply.
+- **Alternatives considered:** `MediaRecorder` as the task literally says (its WebM output can't be streamed as PCM to the existing WS protocol without a server-side transcoder, which M5 deliberately avoided, D-042); the `POST /voice` upload endpoint instead of the stream (M5's own eval found the upload channel misses the p95 latency target, D-045, which is why that eval run's note says the web app should use the stream).
+- **Consequences:** `AudioWorklet` needs a secure context (HTTPS or `localhost`) and isn't available in a couple of older mobile browsers; the mic button fails closed with a translated error notice (`errorMicPermission`) rather than silently falling back to upload.
+
+## D-048 — "What Sahayak knows about me": no edit endpoint yet, so "Edit" means "say it in chat"
+
+- **Date:** 2026-10-24
+- **Task:** M6-T07
+- **Status:** accepted
+- **Context:** The tracker asks for an edit button, but the only way a profile value changes before M10 (accounts) is through `extract_profile` during a conversation turn — there is no `PATCH /v1/sessions/{id}/profile` endpoint, and adding one now would duplicate the contradiction-handling logic that node already owns (TRD §10, M4-T03).
+- **Decision:** The panel shows every known field and value from `GET /profile`, with a fixed hint translated into all three languages ("To correct this, just tell Sahayak in the chat — for example, …") instead of an inline editor. Delete is real: it calls `DELETE /v1/sessions/{id}` (confirmed with a dialog first) and starts a fresh session.
+- **Alternatives considered:** a dedicated edit endpoint that writes `profile`/`field_sources` directly (bypasses `extract_profile`'s contradiction and consent checks, and is scope that belongs with M10's accounts work, not M6); an inline form per field (same bypass problem, more UI for a milestone that's meant to be the thin client over the existing agent).
+- **Consequences:** Correcting a value takes one more conversational turn than a direct edit would; this is revisited if M10 adds a real profile-management surface.
+
+## D-049 — The Playwright smoke test runs on demand, like the paid-API evals
+
+- **Date:** 2026-10-24
+- **Task:** M6-T09
+- **Status:** accepted
+- **Context:** M6-T09 asks for a Playwright smoke test of the core flow (consent → ask about eligibility → see a reply → check the profile panel). A real reply needs a working LLM provider and at least one ingested scheme; CI has neither (no provider keys are configured there, and the `test`/`eval` jobs use a bare migrated database). This is the same shape of problem M5 already solved for the voice/ASR evals (D-045): don't block CI on paid APIs.
+- **Decision:** `web/e2e/core-flow.spec.ts` (`@playwright/test`, `web/playwright.config.ts`) drives a real browser against `npm run preview` and a real `sahayak` API at `VITE_API_URL`. It's run locally on demand (`just up`, then `cd web && npm run build && npm run e2e`), not added to the required CI gate. CI's new `web` job instead runs what needs no backend: `eslint`, `tsc --noEmit`, `vitest` (component tests against a mocked API via MSW, covering the same consent → message → eligibility card → profile panel flow with fake data), and `vite build`.
+- **Alternatives considered:** adding a `fake` LLM/STT/TTS provider selectable through `Settings` so a secret-free server could back a CI-run Playwright test (real infrastructure value, but a backend-provider change that belongs with its own task rather than riding in on the frontend milestone); running Playwright against a live stack in the `compose` CI job (that job already has no provider keys, so the chat turn would just 503).
+- **Consequences:** The core flow's true end-to-end behaviour (real STT/LLM/TTS, real eligibility data) is only checked by a human running `npm run e2e` locally or by M6-T10's phone test, same as the voice evals' live runs; the MSW-backed Vitest suite is what actually gates every push.

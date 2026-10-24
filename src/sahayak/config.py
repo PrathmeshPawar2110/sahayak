@@ -47,11 +47,24 @@ class Settings(BaseSettings):
 
     # --- speech
     stt_provider: Literal["sarvam", "whisper", "indicconformer"] = "sarvam"
-    tts_provider: Literal["sarvam", "indic_parler"] = "sarvam"
+    tts_provider: Literal["sarvam", "openai", "indic_parler"] = "sarvam"
     sarvam_api_key: SecretStr = _EMPTY_SECRET
-    sarvam_stt_model: str = ""
-    sarvam_tts_model: str = ""
-    sarvam_tts_voice: str = ""
+    sarvam_stt_model: str = "saaras:v4"
+    sarvam_tts_model: str = "bulbul:v3"
+    sarvam_tts_voice: str = "shubh"
+    # Not in TRD §15 (added in M5, see D-041 to D-044).
+    stt_fallback_provider: Literal["", "sarvam", "whisper"] = ""
+    tts_fallback_provider: Literal["", "sarvam", "openai"] = ""
+    openai_stt_model: str = "gpt-4o-mini-transcribe"
+    openai_tts_model: str = "gpt-4o-mini-tts"
+    openai_tts_voice: str = "alloy"
+    speech_timeout_sec: float = Field(default=20.0, gt=0)
+    tts_cache_ttl_days: int = Field(default=7, gt=0)
+    max_voice_upload_mb: float = Field(default=5, gt=0, le=25)
+    # Voice turns transcribed with a confidence below this confirm what was heard (FR-14).
+    asr_confirm_threshold: float = Field(default=0.6, ge=0, le=1)
+    # Streaming voice: send a partial transcript every N seconds of new audio (0: never).
+    stream_partial_interval_sec: float = Field(default=2.0, ge=0)
 
     # --- embeddings
     embedding_provider: Literal["local", "azure_openai"] = "local"
@@ -70,6 +83,9 @@ class Settings(BaseSettings):
     phone_hash_salt: SecretStr = _EMPTY_SECRET
     session_ttl_days: int = Field(default=30, gt=0)
     max_questions_per_session: int = Field(default=8, gt=0)
+
+    # --- web frontend (not in TRD §15; added in M6)
+    cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173"]
 
     # --- scheme discovery (TRD §8A)
     discovery_enabled: bool = True
@@ -122,6 +138,13 @@ class Settings(BaseSettings):
     def _split_states(cls, value: object) -> object:
         if isinstance(value, str):
             return [part.strip().upper() for part in value.split(",") if part.strip()]
+        return value
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _split_origins(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [part.strip() for part in value.split(",") if part.strip()]
         return value
 
     @field_validator("doc_expiry_offsets_days", "deadline_offsets_days", mode="before")

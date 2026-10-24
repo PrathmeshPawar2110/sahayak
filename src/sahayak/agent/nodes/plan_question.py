@@ -1,6 +1,7 @@
 """`plan_question`: ask for the one detail that settles the most schemes (TRD §10, FR-5, FR-14).
 
-A contradiction is confirmed first, with fixed wording. Otherwise the planner picks the field
+A contradiction, or what was heard in a voice message the speech-to-text was unsure about, is
+confirmed first, with fixed wording. Otherwise the planner picks the field
 (`sahayak.agent.questions`) and the LLM words the question in the user's language (prompt
 `question_wording`). The fixed wording in `replies.yaml` is used instead when the LLM fails, or
 when its question is empty, too long, or names a scheme: a question must never hint at a
@@ -81,11 +82,20 @@ async def plan_question(state: AgentState, runtime: Runtime[AgentDeps]) -> Agent
     language = state.get("language", "en")
     update: AgentState = {}
     contradiction = contradiction_to_confirm(state)
-    if contradiction is not None:
+    if contradiction is not None and contradiction.reason == "unclear_audio":
+        # One read-back confirms every value heard in that message.
+        text = message("confirm_heard", language, heard=contradiction.heard or "")
+        pending = PendingQuestion(field=contradiction.field, kind="confirm_heard")
+        update["contradictions"] = [
+            c.model_copy(update={"asked": True}) if c.reason == "unclear_audio" else c
+            for c in state.get("contradictions", [])
+        ]
+    elif contradiction is not None:
+        current = contradiction.current
         text = message(
             "confirm",
             language,
-            old=format_value(contradiction.current, language),
+            old="" if current is None else format_value(current, language),
             new=format_value(contradiction.new, language),
         )
         pending = PendingQuestion(field=contradiction.field, kind="confirm")

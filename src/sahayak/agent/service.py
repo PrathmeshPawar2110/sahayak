@@ -123,11 +123,19 @@ class AgentService:
         *,
         language: Language,
         consents: list[ConsentPurpose],
+        asr_confidence: float | None = None,
     ) -> TurnResult:
         """One turn: the reply, the strict results and what it cost. Logs an `agent_turn` event
-        (counts and timings only, never text)."""
+        (counts and timings only, never text). `asr_confidence` is given for voice messages
+        whose speech-to-text reported one (FR-14)."""
         with tracer.start_as_current_span("agent.turn") as span, metered() as usage:
-            result = await self._run(session_id, text, language=language, consents=consents)
+            result = await self._run(
+                session_id,
+                text,
+                language=language,
+                consents=consents,
+                asr_confidence=asr_confidence,
+            )
             fields = usage.fields()
             span.set_attribute("agent.latency_ms", result.latency_ms)
             for key, value in fields.items():
@@ -155,6 +163,7 @@ class AgentService:
         *,
         language: Language,
         consents: list[ConsentPurpose],
+        asr_confidence: float | None,
     ) -> TurnResult:
         deps = self._deps
         if deps is None:
@@ -168,6 +177,7 @@ class AgentService:
             "language": language,
             "consents": consents,
             "pii_found": pii,
+            "asr_confidence": asr_confidence,
         }
         try:
             state = cast(
@@ -255,6 +265,7 @@ def agent_deps(
         config=AgentConfig(
             max_questions=settings.max_questions_per_session,
             show_provisional=settings.show_provisional_schemes,
+            asr_confirm_threshold=settings.asr_confirm_threshold,
         ),
     )
 

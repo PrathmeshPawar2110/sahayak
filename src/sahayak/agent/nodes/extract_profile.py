@@ -12,12 +12,17 @@ deterministically:
   answer to that confirmation question is taken as given; if the user doesn't answer it, the
   known value stays.
 - Fields the user declines (or doesn't know) are remembered, so they aren't asked again.
+- A voice message the speech-to-text was unsure about (confidence below
+  `asr_confirm_threshold`) saves nothing new: each value it would add or change becomes an
+  `unclear_audio` item, and the agent reads back what it heard. Values confirmed on the next
+  turn are saved; unconfirmed ones are dropped (D-043).
 """
 
 import structlog
 from langgraph.runtime import Runtime
 from pydantic import ValidationError
 
+from sahayak.agent.conversation import latest_user_text
 from sahayak.agent.deps import AgentDeps
 from sahayak.agent.state import AgentState, Contradiction, ExtractedFact, FieldValue
 from sahayak.eligibility.fields import PROFILE_FIELDS
@@ -66,6 +71,35 @@ def _number(text: str, *, whole: bool) -> int | float | None:
     return number
 
 
+def _confirming(state: AgentState) -> set[str]:
+    """Fields the agent's last message asked the user to confirm."""
+    pending = state.get("pending_question")
+    if pending is None:
+        return set()
+    if pending.kind == "confirm":
+        return {pending.field}
+    if pending.kind == "confirm_heard":
+        return {
+            c.field
+            for c in state.get("contradictions", [])
+            if c.reason == "unclear_audio" and c.asked
+        }
+    return set()
+
+
+def _unclear_audio(state: AgentState, threshold: float) -> bool:
+    confidence = state.get("asr_confidence")
+    return confidence is not None and confidence < threshold
+
+
+MAX_HEARD_CHARS = 200
+
+
+def _heard(state: AgentState) -> str:
+    text = " ".join(latest_user_text(state).split())
+    return text if len(text) <= MAX_HEARD_CHARS else f"{text[: MAX_HEARD_CHARS - 1]}…"
+
+
 def same_value(a: FieldValue, b: FieldValue) -> bool:
     # bool is an int in Python: keep True from equalling 1.
     return isinstance(a, bool) is isinstance(b, bool) and a == b
@@ -76,8 +110,11 @@ async def extract_profile(state: AgentState, runtime: Runtime[AgentDeps]) -> Age
     if understanding is None:
         return {}
     profile = state["profile"]
-    pending = state.get("pending_question")
-    confirming = pending.field if pending and pending.kind == "confirm" else None
+    confirming = _confirming(state)
+    unclear = _unclear_audio(state, runtime.context.config.asr_confirm_threshold)
+    asr_confidence = state.get("asr_confidence")
+    # Typed text, or speech whose provider gives no confidence, counts as certain.
+    confidence = 1.0 if asr_confidence is None else asr_confidence
     sensitive_ok = "sensitive" in state.get("consents", [])
     contradictions = {c.field: c for c in state.get("contradictions", [])}
     declined = list(state.get("declined_fields", []))
@@ -94,10 +131,20 @@ async def extract_profile(state: AgentState, runtime: Runtime[AgentDeps]) -> Age
             continue
         answered.add(field.name)
         current = updates.get(field.name, getattr(profile, field.name))
-        if current is None or field.name == confirming or same_value(current, value):
+        if unclear and field.name not in confirming:
+            if current is None or not same_value(current, value):
+                contradictions[field.name] = Contradiction(
+                    field=field.name,
+                    current=current,
+                    new=value,
+                    reason="unclear_audio",
+                    heard=_heard(state),
+                )
+            continue
+        if current is None or field.name in confirming or same_value(current, value):
             updates[field.name] = value
             sources[field.name] = FieldSource(
-                source="self_declared", captured_at=runtime.context.clock(), confidence=1.0
+                source="self_declared", captured_at=runtime.context.clock(), confidence=confidence
             )
             contradictions.pop(field.name, None)
             if field.name in declined:
@@ -105,8 +152,9 @@ async def extract_profile(state: AgentState, runtime: Runtime[AgentDeps]) -> Age
         else:
             contradictions[field.name] = Contradiction(field=field.name, current=current, new=value)
 
-    if confirming and confirming not in answered:
-        contradictions.pop(confirming, None)  # asked once, not answered: keep the known value
+    for name in confirming - answered:
+        # Asked once, not answered: keep the known value (or, for unclear audio, nothing).
+        contradictions.pop(name, None)
     for name in understanding.declined_fields:
         if name not in declined and name not in answered and getattr(profile, name) is None:
             declined.append(name)

@@ -78,7 +78,9 @@ class CitationResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     reply_text: str
-    reply_audio_url: str | None = None  # voice replies arrive in M5
+    reply_audio_url: str | None = Field(
+        None, description="The reply spoken (GET it); null when speech synthesis is unavailable"
+    )
     kind: ReplyKind
     language: Language
     intent: Intent | None
@@ -86,6 +88,30 @@ class MessageResponse(BaseModel):
     eligibility: EligibilityGroups
     citations: list[CitationResponse]
     session_deleted: bool = False
+
+
+class TranscriptResponse(BaseModel):
+    text: str
+    language: Language | None = Field(description="Language the speech-to-text detected")
+    confidence: float | None = Field(
+        description="Speech-to-text confidence (0-1); null when the provider gives none"
+    )
+
+
+class VoiceLatency(BaseModel):
+    """Milliseconds per stage, from when the recording reached the server."""
+
+    stt_ms: int | None
+    agent_ms: int | None
+    tts_ms: int | None = Field(description="Until the reply's audio was ready")
+    total_ms: int
+
+
+class VoiceResponse(MessageResponse):
+    transcript: TranscriptResponse | None = Field(
+        description="What was heard; null when the recording could not be transcribed"
+    )
+    latency: VoiceLatency
 
 
 class FieldSourceResponse(BaseModel):

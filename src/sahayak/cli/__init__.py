@@ -4,6 +4,8 @@ import typer
 
 from sahayak.cli.eval import eval_command
 from sahayak.cli.ingest import ingest_command
+from sahayak.cli.latency import latency_command
+from sahayak.cli.openapi import openapi_command
 from sahayak.cli.rules import rules_app
 
 app = typer.Typer(
@@ -11,4 +13,6 @@ app = typer.Typer(
 )
 app.command("ingest")(ingest_command)
 app.command("eval")(eval_command)
+app.command("latency")(latency_command)
+app.command("openapi")(openapi_command)
 app.add_typer(rules_app, name="rules")
